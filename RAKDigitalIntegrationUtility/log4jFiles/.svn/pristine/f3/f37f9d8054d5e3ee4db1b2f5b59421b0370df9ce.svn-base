@@ -1,0 +1,12 @@
+# Root logger option  . Possible Options : TRACE,DEBUG,INFO,WARN,ERROR,FATAL,ALL
+log4j.rootLogger=ALL
+
+log4j.category.DECTECHSystemIntegrationLogger=ALL, DECTECHSystemIntegrationLogger
+log4j.additivity.iRBLSysCheckIntegrationLogger=false
+
+log4j.appender.DECTECHSystemIntegrationLogger=org.apache.log4j.RollingFileAppender  
+log4j.appender.DECTECHSystemIntegrationLogger.File=Logs/DECTECH_SystemIntegration_Log/DECTECH_SystemIntegration_Log.xml
+log4j.appender.DECTECHSystemIntegrationLogger.MaxFileSize=10000KB
+log4j.appender.DECTECHSystemIntegrationLogger.MaxBackupIndex=100
+log4j.appender.DECTECHSystemIntegrationLogger.layout=org.apache.log4j.PatternLayout
+log4j.appender.DECTECHSystemIntegrationLogger.layout.ConversionPattern=[%5p] %d{dd-MMM-yyyy HH:mm:ss} (%F:%L)%n%m%n%n

@@ -1,0 +1,1934 @@
+package com.newgen.DCC.EFMS;
+
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.text.Format;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
+
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.time.LocalDate;
+import java.time.Period;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import com.newgen.DCC.DECTECHIntegration.MapXML;
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.XMLParser;
+import com.newgen.omni.wf.util.app.NGEjbClient;
+import com.newgen.wfdesktop.xmlapi.WFCallBroker;
+import com.newgen.wfdesktop.xmlapi.WFInputXml;
+
+public class DCC_EFMS_Integration implements Runnable {
+
+	static Map<String, String> DCCSystemIntegrationMap = new HashMap<String, String>();
+	HashMap<String, String> socketDetailsMap = new HashMap<String,String> ();
+
+	static NGEjbClient ngEjbClient;
+	String sessionID = "";
+	String cabinetName = "";
+	static String jtsIP = "";
+	String jtsPort = "";
+	String queueID = "";
+	int socketConnectionTimeout = 0;
+	int integrationWaitTime = 0;
+	int sleepIntervalInMin = 0;
+	int Utility_retry_count = 0; // Read from the config file
+	int TrialTime = 0;
+	int ErrorCount = 0;
+	static String fromMailID="";
+	static String toMailID="";
+	Date now = null;
+	public String sdate="";
+	public  String file;
+	public String newFilename=null;
+	public String msg;
+	String updateStatus = null;
+	static String tableUpdate;
+	public static int sessionCheckInt=0;
+	public static int loopCount=50;
+	public static int waitLoop=50;
+	static String txtFilePath =null;
+	public  String TimeStamp="";
+	public static String sourceDestinaton = "";
+	public static String successPath = "";
+	public static String errorPath = "";
+	public static String sourcePath = "";
+	public static String inProgressPath = "";
+	public static String movedPath = "";
+	public static String failPath = "";
+	public String filePath="";
+	public static String inputPath = "";
+	public static String ApplicationFileName = "";
+	public static String AlertFileName = "";
+	public static String AlertedUpdateColumn = "";
+	public static String ApplicationInsertColumn = "";
+	public static String DCCExtTable = "";
+	public static String DCCExtTableFlag = "";
+	public static String ActivityName = "";
+	private static String ActivityID="";
+	private static String ProcessDefId="";
+	
+
+	@Override
+	public void run() {
+		try {
+			DCC_EFMS_IntegrationLog.setLogger();
+			ngEjbClient = NGEjbClient.getSharedInstance();
+
+			int configReadStatus = readConfig();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("configReadStatus " + configReadStatus);
+			if (configReadStatus != 0) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Could not Read Config Properties [DCC_EFMS_System_Integration_Config.properties]");
+				return;
+			}
+
+			cabinetName = CommonConnection.getCabinetName();
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Cabinet Name: " + cabinetName);
+
+			jtsIP = CommonConnection.getJTSIP();
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("JTSIP: " + jtsIP);
+
+			jtsPort = CommonConnection.getJTSPort();
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("JTSPORT: " + jtsPort);
+
+			queueID = DCCSystemIntegrationMap.get("queueID");
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("QueueID: " + queueID);
+
+			socketConnectionTimeout = Integer.parseInt(DCCSystemIntegrationMap.get("MQ_SOCKET_CONNECTION_TIMEOUT"));
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SocketConnectionTimeOut: " + socketConnectionTimeout);
+
+			integrationWaitTime = Integer.parseInt(DCCSystemIntegrationMap.get("INTEGRATION_WAIT_TIME"));
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("IntegrationWaitTime: " + integrationWaitTime);//need to be removed
+
+			sleepIntervalInMin = Integer.parseInt(DCCSystemIntegrationMap.get("SleepIntervalInMin"));
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SleepIntervalInMin: " + sleepIntervalInMin);
+
+			
+			String Utility_retry_count_str = DCCSystemIntegrationMap.get("INTEGRATION_WAIT_TIME");
+			Utility_retry_count = Integer.parseInt(Utility_retry_count_str);
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Utility_retry_count_str: " + Utility_retry_count);
+			
+			TrialTime=Integer.parseInt(DCCSystemIntegrationMap.get("TrialTime"));
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("TrialTime: "+TrialTime);
+
+
+			ErrorCount=Integer.parseInt(DCCSystemIntegrationMap.get("ErrorCount"));
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ErrorCount: "+ErrorCount);
+
+			
+			sourceDestinaton = DCCSystemIntegrationMap.get("ProcessingFilePath");
+			successPath=DCCSystemIntegrationMap.get("SuccessPath");
+			errorPath=DCCSystemIntegrationMap.get("FailPath");
+			inputPath=DCCSystemIntegrationMap.get("InputPath");
+			txtFilePath =DCCSystemIntegrationMap.get("TxtFilePath");
+			tableUpdate =DCCSystemIntegrationMap.get("tableUpdate");
+			ApplicationFileName =DCCSystemIntegrationMap.get("ApplicationFileName");
+			AlertFileName =DCCSystemIntegrationMap.get("AlertFileName");
+			AlertedUpdateColumn =DCCSystemIntegrationMap.get("AlertedUpdateColumn");
+			ApplicationInsertColumn =DCCSystemIntegrationMap.get("ApplicationInsertColumn");
+			DCCExtTable =DCCSystemIntegrationMap.get("DCCExtTable");
+			DCCExtTableFlag =DCCSystemIntegrationMap.get("DCCExtTableFlag");
+			fromMailID =DCCSystemIntegrationMap.get("FromMailID");
+			toMailID =DCCSystemIntegrationMap.get("ToMailID");
+			
+			sessionID = CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false);
+			socketDetailsMap = CommonMethods.socketConnectionDetails(cabinetName, jtsIP, jtsPort, sessionID);
+
+			if (sessionID.trim().equalsIgnoreCase("")) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Could Not Connect to Server!");
+			} else {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Session ID found: " + sessionID);
+				while(true)
+				{
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Starting EFMS Utility thread.. ");
+					DCC_EFMS_IntegrationLog.setLogger();
+					/**Read all the files**/
+					readEFMSFiles();
+					/**Insert data in control table and application dim table **/
+					insertDataInEFMSTable(cabinetName, jtsIP, jtsPort, sessionID, queueID,"","","");
+					System.out.println("No More workitems to Process, Sleeping!");
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Completed the EFMS iteration ... ");
+					Thread.sleep(sleepIntervalInMin*60*1000);
+				}
+			}
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception Occurred in DCC CIF Verification : " + e);
+			final Writer result = new StringWriter();
+			final PrintWriter printWriter = new PrintWriter(result);
+			e.printStackTrace(printWriter);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception Occurred in DCC CIF Verification : " + result);
+		}
+	}
+	public void updateExttable(String cabinetName, String sJtsIp, String iJtsPort, String sessionId, String processInstanceID){
+		try{
+			String StrExttable_query = "SELECT FirstName, MiddleName, LastName FROM NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+			String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(StrExttable_query, CommonConnection.getCabinetName(), sessionId);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("StrExttable_query: " + StrExttable_query);
+			String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+			XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+			String FirstName="";
+			String MiddleName="";
+			String LastName="";
+			String CustomerName="";
+			String mainCode=xmlParserData.getValueOf("MainCode");
+			if (mainCode!=null && !"".equalsIgnoreCase(mainCode) && mainCode.equalsIgnoreCase("0")) {
+				FirstName=xmlParserData.getValueOf("FirstName");
+				MiddleName=xmlParserData.getValueOf("MiddleName");
+				LastName=xmlParserData.getValueOf("LastName");
+				if(!"".equalsIgnoreCase(MiddleName)){
+					CustomerName=FirstName+" "+MiddleName+" "+LastName;
+				}
+				else{
+					CustomerName=FirstName+" "+LastName;
+				}
+
+				String columnNames = "CUSTOMERNAME";
+				String columnValues = "'"+ CustomerName +"'";
+				String sWhereClause = "Wi_Name = '" + processInstanceID + "'";
+
+				String extTableIPUpdateXml1 = CommonMethods.apUpdateInput(CommonConnection.getCabinetName(), sessionId, 
+						DCCExtTable, columnNames, columnValues, sWhereClause);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Input XML for apUpdateInput for  NG_DCC_EXTTABLE  Table : " + extTableIPUpdateXml1);
+
+				String extTableOPUpdateXml1 = CommonMethods.WFNGExecute(extTableIPUpdateXml1, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Output XML for apUpdateInput for NG_DCC_EXTTABLE Table : " + extTableOPUpdateXml1);
+			} 
+
+		}
+		catch(Exception e){
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Exception occured in updateExttable : " + e);
+		}
+	}
+	public void insertDataInEFMSTable(String cabinetName, String sJtsIp, String iJtsPort, String sessionId, String queueID, String processInstanceId, String lastWorkItemId,String entryDateTime_str) {
+
+		final String ws_name = "Sys_Int_EFMS";
+		String processingFlag="";
+		String errorType="";
+		String entryDateTime="";
+		try {
+			// Validate Session ID
+			sessionId = CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false);
+
+			if (sessionId == null || sessionId.equalsIgnoreCase("") || sessionId.equalsIgnoreCase("null")) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Could Not Get Session ID " + sessionId);
+				return;
+			}
+
+			// Fetch all Work-Items on given queueID.
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Fetching all Workitems on DCC_SysCheckIntegration queue");
+			System.out.println("Fetching all Workitems on EFMS queue");
+
+			//String fetchWorkitemListInputXML = CommonMethods.fetchWorkItemsInput(cabinetName, sessionId, queueID);
+			String fetchWorkitemListInputXML = CommonMethods.getFetchWorkItemsInputXML(processInstanceId, lastWorkItemId,  sessionId, cabinetName, queueID,entryDateTime_str);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("InputXML for fetchWorkList Call: " + fetchWorkitemListInputXML);
+
+			String fetchWorkitemListOutputXML = CommonMethods.WFNGExecute(fetchWorkitemListInputXML, sJtsIp, iJtsPort, 1);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("WMFetchWorkList OutputXML: " + fetchWorkitemListOutputXML);
+
+			XMLParser xmlParserFetchWorkItemlist = new XMLParser(fetchWorkitemListOutputXML);
+
+			String fetchWorkItemListMainCode = xmlParserFetchWorkItemlist.getValueOf("MainCode");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("FetchWorkItemListMainCode: " + fetchWorkItemListMainCode);
+
+			int fetchWorkitemListCount = Integer.parseInt(xmlParserFetchWorkItemlist.getValueOf("RetrievedCount"));
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("RetrievedCount for WMFetchWorkList Call: " + fetchWorkitemListCount);
+			//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Number of workitems retrieved on EFMS: " + fetchWorkitemListCount);
+			System.out.println("Number of workitems retrieved on EFMS: " + fetchWorkitemListCount);
+
+			if (fetchWorkItemListMainCode.trim().equals("0") && fetchWorkitemListCount > 0) {
+				for (int i = 0; i < fetchWorkitemListCount; i++) {
+					String fetchWorkItemlistData = xmlParserFetchWorkItemlist.getNextValueOf("Instrument");
+					fetchWorkItemlistData = fetchWorkItemlistData.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+					
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: " + fetchWorkItemlistData);
+					XMLParser xmlParserfetchWorkItemData = new XMLParser(fetchWorkItemlistData);
+
+					String processInstanceID = xmlParserfetchWorkItemData.getValueOf("ProcessInstanceId");
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Current ProcessInstanceID: " + processInstanceID);
+
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Processing Workitem: " + processInstanceID);
+					System.out.println("\nProcessing Workitem: " + processInstanceID);
+
+					String WorkItemID = xmlParserfetchWorkItemData.getValueOf("WorkItemId");
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Current WorkItemID: " + WorkItemID);
+
+					entryDateTime = xmlParserfetchWorkItemData.getValueOf("EntryDateTime");
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Current EntryDateTime: " + entryDateTime);
+
+					ActivityID = xmlParserfetchWorkItemData.getValueOf("WorkStageId");
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ActivityID: " + ActivityID);
+
+					String ActivityType = xmlParserfetchWorkItemData.getValueOf("ActivityType");
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ActivityType: " + ActivityType);
+					
+					ActivityName = xmlParserfetchWorkItemData.getValueOf("ActivityName");
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ActivityName: " + ActivityName);
+
+					ProcessDefId = xmlParserfetchWorkItemData.getValueOf("RouteId");
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ProcessDefId: " + ProcessDefId);
+					
+					String IS_virtual_Card_Created="";
+					String DBQuery_VirtualCard = "select IS_virtual_Card_Created,Wi_Name from NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+					String extTabDataIPXML_VirtualCard = CommonMethods.apSelectWithColumnNames(DBQuery_VirtualCard, CommonConnection.getCabinetName(),
+					CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false));
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataIPXML_VirtualCard: " + extTabDataIPXML_VirtualCard);
+					String extTabDataOPXML_VirtualCard = CommonMethods.WFNGExecute(extTabDataIPXML_VirtualCard, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML_VirtualCard: " + extTabDataOPXML_VirtualCard);
+					XMLParser xmlParserData_VirtualCard = new XMLParser(extTabDataOPXML_VirtualCard);
+					int iTotalrec_VirtualCard = Integer.parseInt(xmlParserData_VirtualCard.getValueOf("TotalRetrieved"));
+					String mainCode_VirtualCard=xmlParserData_VirtualCard.getValueOf("MainCode");
+					if (mainCode_VirtualCard!=null && !"".equalsIgnoreCase(mainCode_VirtualCard) && mainCode_VirtualCard.equalsIgnoreCase("0")){
+						if(iTotalrec_VirtualCard>0){
+							IS_virtual_Card_Created=xmlParserData_VirtualCard.getValueOf("IS_virtual_Card_Created");
+						}
+					}
+					
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("IS_virtual_Card_Created: " + IS_virtual_Card_Created);
+					
+					/** Murabha execution **/
+					if("Y".equalsIgnoreCase(IS_virtual_Card_Created))
+					{
+						String status=executeMurahabhaCalls(processInstanceID,ws_name,WorkItemID,entryDateTime,ActivityType);
+						if("Error".equalsIgnoreCase(status))
+							continue;
+					}
+					/** We can remove this because its run for all the cases **/
+					//Deepak change done to fetch more than 100 cases
+					if(i==99){
+						processInstanceId = processInstanceID;
+						lastWorkItemId = WorkItemID;
+					}
+					
+					String application_number = processInstanceID.split("-")[1];
+					String DBQuery = "SELECT STATUS FROM NG_DCC_EFMS_CONTROLTABLE with(nolock) WHERE WI_NAME='" + application_number + "'";
+
+					String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(),
+							CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false));
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+					String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+					XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+					int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+					String mainCode=xmlParserData.getValueOf("MainCode");
+					if (mainCode!=null && !"".equalsIgnoreCase(mainCode) && mainCode.equalsIgnoreCase("0")) {
+						if (iTotalrec == 0) {
+							updateExttable(cabinetName, sJtsIp, iJtsPort, sessionId, processInstanceID);
+							String applicant_resident_id = "";
+							String application_type = "Credit Card";
+							String application_status = "Waiting for Approval";
+							String applicant_customer_id = "";
+							String applicant_name = "";
+							String applicant_first_name = "";
+							String applicant_middle_name = "";
+							String applicant_last_name = "";
+							String applicant_dob = "";
+							String applicant_residential_address_line1 = "";
+							String applicant_residential_address_line2 = "";
+							String applicant_residential_address_line3 = "";
+							String applicant_residential_address_city = "";
+							String applicant_residential_address_state = "";
+							String applicant_residential_address_country = "";
+							String applicant_residential_address_POST_BOX = "";
+							String applicant_office_address_line1 = "";
+							String applicant_office_address_line2 = "";
+							String applicant_office_address_line3 = "";
+							String applicant_office_address_city = "";
+							String applicant_office_address_state = "";
+							String applicant_office_address_country = "";
+							String applicant_office_address_POST_BOX = "";
+							String applicant_home_country_address_line1 = "";
+							String applicant_home_country_address_line2 = "";
+							String applicant_home_country_address_line3 = "";
+							String applicant_home_country_city = "";
+							String applicant_home_country_state = "";
+							String applicant_home_country = "";
+							String applicant_home_POST_BOX = "";
+							String applicant_home_country_number = "";
+							String applicant_mobile_number1 = "";
+							String preferred_address = "";
+							String applicant_nationality = "";
+							String applicant_email = "";
+							String applicant_occupation = "";
+							String applicant_occupation_type = "";
+							String applicant_employer_name = "";
+							String applicant_designation = "";
+							String applicant_passport_id = "";
+							String applicant_passport_expiry_date = "";
+							String applicant_salary = "";
+							String applicant_total_income = "";
+							String period_of_service = "";
+							String product_category = "";
+							String product_code = "";
+							String limit_for_cards = "";
+							String new_credit_limit_requested = "";
+							String industry_segment_retail = "";
+							String industry_sub_segment_retail = "";
+							String application_request_datetime_stamp = "";
+							String application_approval_datetime_stamp = "";
+							String APP_CHANNEL_TYPE = "NEW";
+							String FUTURE_PURPOSE_1 = "";
+							String FUTURE_PURPOSE_2 = "";
+							String FUTURE_PURPOSE_3 = "";
+							String FUTURE_PURPOSE_4 = "";
+							String FUTURE_PURPOSE_6 = "DIG";
+							String FUTURE_PURPOSE_7 = "";
+							String FUTURE_PURPOSE_8 = "YES";
+							String FUTURE_PURPOSE_9 = "YES";
+							String FUTURE_PURPOSE_10 = "";
+							String REJECTED_BY_USER_OVRLD_FLG = "";
+							String SOURCED_BY_DSA_OVRLD_FLG = "";
+							String AECB_Score = "";
+							String Name_On_EID = "";
+							
+							// CIF replaced with Prospect_id Due to new changes 07072023 - Discussed With Simi.
+							
+							DBQuery = "SELECT EmirateID AS applicant_resident_id, Prospect_id AS applicant_customer_id, CASE WHEN MiddleName is null THEN CONCAT(FirstName, ' ', LAstName) ELSE CONCAT(FirstName,' ', MiddleName,' ', LAstName) END AS applicant_name, "
+									+ "FirstName AS applicant_first_name, MiddleName AS applicant_middle_name, LAstName AS applicant_last_name, dob AS applicant_dob, Nationality_Desc AS applicant_nationality, "
+									+ "email_id as applicant_email, Designation_Desc AS applicant_occupation, EmploymentType_Desc AS applicant_occupation_type, Employer_Name AS applicant_employer_name,"
+									+ "Designation_Desc AS applicant_designation, PassportNo AS applicant_passport_id, Passport_expiry AS applicant_passport_expiry_date, "
+									+ "Cust_Decl_Salary AS applicant_total_income, Product_Desc AS product_category, "
+									+ "Product AS product_code, IPA_Limit AS limit_for_cards, ApprovedLimit, Requested_Limit AS new_credit_limit_requested, Industry AS industry_segment_retail, "
+									+ "Sub_Industry AS industry_sub_segment_retail, Prospect_Creation_Date AS application_request_datetime_stamp, EmID_Expiry AS FUTURE_PURPOSE_1, IBAN as FUTURE_PURPOSE_7, "
+									+ "employercode as FUTURE_PURPOSE_10, Gender_Code as REJECTED_BY_USER_OVRLD_FLG, Visa_Number as SOURCED_BY_DSA_OVRLD_FLG, Aecb_score as applicant_aecb_score, "
+									+ "Name_On_EID as applicant_name_as_per_EID, Date_Of_Joining, MobileNo as applicant_mobile_number1 from  NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+
+							extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(),
+									CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false));
+							//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+							extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+							DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+							XMLParser xmlParserData_Ext = new XMLParser(extTabDataOPXML);
+							int iTotalrec_Ext = Integer.parseInt(xmlParserData_Ext.getValueOf("TotalRetrieved"));
+
+							if (xmlParserData_Ext.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec_Ext > 0) {
+
+								DBQuery = "select top 1 Address_Type, House_No AS applicant_residential_address_line1,Building_Name AS applicant_residential_address_line2,"
+										+ "Street_Name AS applicant_residential_address_line3,City_Desc AS applicant_residential_address_city,State_Desc AS applicant_residential_address_state,"
+										+ "Country_Desc AS applicant_residential_address_country,PO_Box_Address AS applicant_residential_address_POST_BOX from  "
+										+ "NG_DCC_GR_ADDRESS_DETAIL with(nolock) where wi_name = '" + processInstanceID + "' and Address_Type not like  '%Home%'";
+
+								extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(),
+										CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false));
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+								extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+								XMLParser xmlParserData_Add = new XMLParser(extTabDataOPXML);
+								int iTotalrec_add = Integer.parseInt(xmlParserData_Add.getValueOf("TotalRetrieved"));
+								if (xmlParserData_Add.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec_add > 0) {
+									preferred_address = xmlParserData_Add.getValueOf("Address_Type");
+									if ("Residence".equalsIgnoreCase(preferred_address)) {
+										applicant_residential_address_line1 = xmlParserData_Add.getValueOf("applicant_residential_address_line1");
+										applicant_residential_address_line2 = xmlParserData_Add.getValueOf("applicant_residential_address_line2");
+										applicant_residential_address_line3 = xmlParserData_Add.getValueOf("applicant_residential_address_line3");
+										applicant_residential_address_city = xmlParserData_Add.getValueOf("applicant_residential_address_city");
+										applicant_residential_address_state = xmlParserData_Add.getValueOf("applicant_residential_address_state");
+										applicant_residential_address_country = xmlParserData_Add.getValueOf("applicant_residential_address_country");
+										applicant_residential_address_POST_BOX = xmlParserData_Add.getValueOf("applicant_residential_address_POST_BOX");
+									} else {
+										applicant_office_address_line1 = xmlParserData_Add.getValueOf("applicant_residential_address_line1");
+										applicant_office_address_line2 = xmlParserData_Add.getValueOf("applicant_residential_address_line2");
+										applicant_office_address_line3 = xmlParserData_Add.getValueOf("applicant_residential_address_line3");
+										applicant_office_address_city = xmlParserData_Add.getValueOf("applicant_residential_address_city");
+										applicant_office_address_state = xmlParserData_Add.getValueOf("applicant_residential_address_state");
+										applicant_office_address_country = xmlParserData_Add.getValueOf("applicant_residential_address_country");
+										applicant_office_address_POST_BOX = xmlParserData_Add.getValueOf("applicant_residential_address_POST_BOX");
+									}
+								}
+								
+								DBQuery = "select top 1 Address_Type, House_No AS applicant_residential_address_line1,Building_Name AS applicant_residential_address_line2,"
+										+ "Street_Name AS applicant_residential_address_line3,City_Desc AS applicant_residential_address_city,State_Desc AS applicant_residential_address_state,"
+										+ "Country_Desc AS applicant_residential_address_country,PO_Box_Address AS applicant_residential_address_POST_BOX, Country_No from  "
+										+ "NG_DCC_GR_ADDRESS_DETAIL with(nolock) where wi_name = '" + processInstanceID + "' and Address_Type like  '%Home%'";
+
+								extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(),
+										CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false));
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+								extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+								XMLParser xmlParserData_HomeAdd = new XMLParser(extTabDataOPXML);
+								iTotalrec_add = Integer.parseInt(xmlParserData_HomeAdd.getValueOf("TotalRetrieved"));
+								if (xmlParserData_HomeAdd.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec_add > 0) {
+									applicant_home_country_address_line1  = xmlParserData_HomeAdd.getValueOf("applicant_residential_address_line1");
+									applicant_home_country_address_line2 = xmlParserData_HomeAdd.getValueOf("applicant_residential_address_line2");
+									applicant_home_country_address_line3 = xmlParserData_HomeAdd.getValueOf("applicant_residential_address_line3");
+									applicant_home_country_city = xmlParserData_HomeAdd.getValueOf("applicant_residential_address_city");
+									applicant_home_country_state = xmlParserData_HomeAdd.getValueOf("applicant_residential_address_state");
+									applicant_home_country = xmlParserData_HomeAdd.getValueOf("applicant_residential_address_country");
+									applicant_home_POST_BOX = xmlParserData_HomeAdd.getValueOf("applicant_residential_address_POST_BOX");
+									applicant_home_country_number = xmlParserData_HomeAdd.getValueOf("Country_No");
+								}
+
+								applicant_resident_id = xmlParserData_Ext.getValueOf("applicant_resident_id");
+								applicant_customer_id = xmlParserData_Ext.getValueOf("applicant_customer_id");
+								applicant_name = xmlParserData_Ext.getValueOf("applicant_name");
+								applicant_first_name = xmlParserData_Ext.getValueOf("applicant_first_name");
+								applicant_middle_name = xmlParserData_Ext.getValueOf("applicant_middle_name");
+								applicant_last_name = xmlParserData_Ext.getValueOf("applicant_last_name");
+								applicant_dob = xmlParserData_Ext.getValueOf("applicant_dob");
+								applicant_mobile_number1 = xmlParserData_Ext.getValueOf("applicant_mobile_number1");
+								applicant_nationality = xmlParserData_Ext.getValueOf("applicant_nationality");
+								applicant_email = xmlParserData_Ext.getValueOf("applicant_email");
+								applicant_occupation = xmlParserData_Ext.getValueOf("applicant_occupation");
+								applicant_occupation_type = xmlParserData_Ext.getValueOf("applicant_occupation_type");
+								applicant_employer_name = xmlParserData_Ext.getValueOf("applicant_employer_name");
+								applicant_designation = xmlParserData_Ext.getValueOf("applicant_designation");
+								applicant_passport_id = xmlParserData_Ext.getValueOf("applicant_passport_id");
+								applicant_passport_expiry_date = xmlParserData_Ext.getValueOf("applicant_passport_expiry_date");
+								applicant_salary = xmlParserData_Ext.getValueOf("applicant_total_income");
+								applicant_total_income = xmlParserData_Ext.getValueOf("applicant_total_income");
+								period_of_service = CalculatLOS(xmlParserData_Ext.getValueOf("Date_Of_Joining")).toString();
+								product_category = xmlParserData_Ext.getValueOf("product_category");
+								product_code = xmlParserData_Ext.getValueOf("product_code");
+								limit_for_cards = xmlParserData_Ext.getValueOf("limit_for_cards");
+								industry_segment_retail = xmlParserData_Ext.getValueOf("industry_segment_retail");
+								industry_sub_segment_retail = xmlParserData_Ext.getValueOf("industry_sub_segment_retail");
+								application_request_datetime_stamp = xmlParserData_Ext.getValueOf("application_request_datetime_stamp");
+								application_approval_datetime_stamp = xmlParserData_Ext.getValueOf("application_request_datetime_stamp");
+								FUTURE_PURPOSE_1 = xmlParserData_Ext.getValueOf("FUTURE_PURPOSE_1");
+								FUTURE_PURPOSE_7 = xmlParserData_Ext.getValueOf("FUTURE_PURPOSE_7");
+								FUTURE_PURPOSE_10 = xmlParserData_Ext.getValueOf("FUTURE_PURPOSE_10");
+								REJECTED_BY_USER_OVRLD_FLG = xmlParserData_Ext.getValueOf("REJECTED_BY_USER_OVRLD_FLG");
+								SOURCED_BY_DSA_OVRLD_FLG = xmlParserData_Ext.getValueOf("SOURCED_BY_DSA_OVRLD_FLG");
+								AECB_Score = xmlParserData_Ext.getValueOf("applicant_aecb_score");
+								Name_On_EID = xmlParserData_Ext.getValueOf("applicant_name_as_per_EID");
+								
+								/**New_credit_limit requested in application DIM should be tagged to 'Requested_Limit'; 
+								   If this is null this should be tagged to Approved limit **/
+								new_credit_limit_requested = validateValue(xmlParserData_Ext.getValueOf("new_credit_limit_requested"));
+								if (new_credit_limit_requested.equals("")){
+									new_credit_limit_requested = validateValue(xmlParserData_Ext.getValueOf("ApprovedLimit"));
+								}
+
+								String employercode = validateValue(xmlParserData_Ext.getValueOf("FUTURE_PURPOSE_10")); // employercode
+								if (!employercode.equals("")) {
+									String query = "select top 1 INDUSTRY_SECTOR, INDUSTRY_MACRO, INDUSTRY_MICRO,COMPANY_STATUS_CC,COMPANY_STATUS_PL,"
+											+ "EMPLOYER_CATEGORY_PL from ng_rlos_aloc_offline_data with(nolock) where EMPLOYER_CODE = '" + employercode + "'";
+									try {
+										List<Map<String, String>> OutputXML_ref = getDataFromDBMap(query, cabinetName, sessionId, sJtsIp, iJtsPort);
+										if (OutputXML_ref.size() > 0) {
+											if (!validateValue(OutputXML_ref.get(0).get("INDUSTRY_MACRO")).equals(""))
+												industry_segment_retail = OutputXML_ref.get(0).get("INDUSTRY_MACRO");
+											
+											if (!validateValue(OutputXML_ref.get(0).get("INDUSTRY_MICRO")).equals(""))
+												industry_sub_segment_retail = OutputXML_ref.get(0).get("INDUSTRY_MICRO");
+											
+											FUTURE_PURPOSE_2 = OutputXML_ref.get(0).get("COMPANY_STATUS_CC");
+											FUTURE_PURPOSE_3 = OutputXML_ref.get(0).get("COMPANY_STATUS_PL");
+											FUTURE_PURPOSE_4 = OutputXML_ref.get(0).get("EMPLOYER_CATEGORY_PL");
+											
+										}
+									} catch (Exception e) {
+										DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug(" Exception occurred in ApplicantDetails Query" + query);
+										DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug(" Exception occurred in sInputXmlApplicantDetails()" + e.getMessage());
+									}
+								}
+
+								String columnNames = "application_number, applicant_resident_id,application_type,application_status,applicant_customer_id,applicant_name,"
+										+ "applicant_first_name,applicant_middle_name,applicant_last_name,applicant_dob,applicant_residential_address_line1,"
+										+ "applicant_residential_address_line2,applicant_residential_address_line3,applicant_residential_address_city,"
+										+ "applicant_residential_address_state,applicant_residential_address_country,applicant_residential_address_POST_BOX,"
+										+ "applicant_office_address_line1,applicant_office_address_line2,applicant_office_address_line3,applicant_office_address_city,"
+										+ "applicant_office_address_state,applicant_office_address_country,applicant_office_address_POST_BOX,applicant_home_country_address_line1,"
+										+ "applicant_home_country_address_line2,applicant_home_country_address_line3,applicant_home_country_city,"
+										+ "applicant_home_country_state,applicant_home_country,applicant_home_POST_BOX,applicant_home_country_number,applicant_mobile_number1,preferred_address,"
+										+ "applicant_nationality,applicant_email,applicant_occupation,applicant_occupation_type,applicant_employer_name,"
+										+ "applicant_designation,applicant_passport_id,applicant_passport_expiry_date,applicant_salary,applicant_total_income,"
+										+ "period_of_service,product_category,product_code,limit_for_cards,new_credit_limit_requested,industry_segment_retail,"
+										+ "industry_sub_segment_retail,application_request_datetime_stamp,application_approval_datetime_stamp,APP_CHANNEL_TYPE,"
+										+ "FUTURE_PURPOSE_1,FUTURE_PURPOSE_2,FUTURE_PURPOSE_3,FUTURE_PURPOSE_4,FUTURE_PURPOSE_6,FUTURE_PURPOSE_7,FUTURE_PURPOSE_8,"
+										+ "FUTURE_PURPOSE_9,FUTURE_PURPOSE_10,REJECTED_BY_USER_OVRLD_FLG,SOURCED_BY_DSA_OVRLD_FLG,AECB_Score,Name_On_EID";
+
+								String columnValues = "'" + application_number + "','" + applicant_resident_id + "','" + application_type + "','" + application_status + "','" + applicant_customer_id
+										+ "','" + applicant_name + "','" + applicant_first_name + "','" + applicant_middle_name + "','" + applicant_last_name + "','" + applicant_dob + "','"
+										+ applicant_residential_address_line1 + "','" + applicant_residential_address_line2 + "','" + applicant_residential_address_line3 + "','"
+										+ applicant_residential_address_city + "','" + applicant_residential_address_state + "','" + applicant_residential_address_country + "','"
+										+ applicant_residential_address_POST_BOX + "','" + applicant_office_address_line1 + "','" + applicant_office_address_line2 + "','"
+										+ applicant_office_address_line3 + "','" + applicant_office_address_city + "','" + applicant_office_address_state + "','" + applicant_office_address_country
+										+ "','" + applicant_office_address_POST_BOX + "','" + applicant_home_country_address_line1 + "','" + applicant_home_country_address_line2 + "','"
+										+ applicant_home_country_address_line3 + "','" + applicant_home_country_city + "','" + applicant_home_country_state + "','" + applicant_home_country + "','"
+										+ applicant_home_POST_BOX + "','"+applicant_home_country_number+"','" + applicant_mobile_number1 + "','" + preferred_address + "','" + applicant_nationality + "','" + applicant_email + "','"
+										+ applicant_occupation + "','" + applicant_occupation_type + "','" + applicant_employer_name + "','" + applicant_designation + "','" + applicant_passport_id
+										+ "','" + applicant_passport_expiry_date + "','" + applicant_salary + "','" + applicant_total_income + "','" + period_of_service + "','" + product_category
+										+ "','" + product_code + "','" + limit_for_cards + "','" + new_credit_limit_requested + "','" + industry_segment_retail + "','" + industry_sub_segment_retail
+										+ "','" + application_request_datetime_stamp + "','" + application_approval_datetime_stamp + "','" + APP_CHANNEL_TYPE + "','" + FUTURE_PURPOSE_1 + "','"
+										+ FUTURE_PURPOSE_2 + "','" + FUTURE_PURPOSE_3 + "','" + FUTURE_PURPOSE_4 + "','" + FUTURE_PURPOSE_6 + "','" + FUTURE_PURPOSE_7 + "','" + FUTURE_PURPOSE_8
+										+ "','" + FUTURE_PURPOSE_9 + "','" + FUTURE_PURPOSE_10 + "','" + REJECTED_BY_USER_OVRLD_FLG + "','" + SOURCED_BY_DSA_OVRLD_FLG + "','" + AECB_Score + "','"
+										+ Name_On_EID + "'";
+
+								String apInsertInputXML = CommonMethods.apInsert(cabinetName, sessionId, columnNames, columnValues, "NG_DCC_EFMS_APPLICATION_DIM");
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertInputXML: " + apInsertInputXML);
+
+								String apInsertOutputXML = CommonMethods.WFNGExecute(apInsertInputXML, sJtsIp, iJtsPort, 1);
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertOutputXML: " + apInsertOutputXML);
+
+								XMLParser xmlParserAPInsert = new XMLParser(apInsertOutputXML);
+								String apInsertMaincode = xmlParserAPInsert.getValueOf("MainCode");
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Status of apInsertMaincode  " + apInsertMaincode);
+
+								if ("0".equalsIgnoreCase(apInsertMaincode)) {
+									SimpleDateFormat inputDateTimeformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+									SimpleDateFormat inputDateformat = new SimpleDateFormat("yyyy-MM-dd");
+
+
+									Date actionDateTime = new Date();
+									String formattedActionDateTime = inputDateTimeformat.format(actionDateTime);
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("FormattedActionDateTime: " + formattedActionDateTime);
+									
+									String formattedDateformat = inputDateformat.format(actionDateTime);
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("formattedDateformat: " + formattedDateformat);
+
+									
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert successful: " + apInsertMaincode);
+									// NG_DCC_EFMS_CONTROLTABLE(WI_NAME,STATUS,Initiation_Type) values(@ApplicationNumber,'Ready',@InitiationType);
+									// STATUS -- Done Ready
+									columnNames = "WI_NAME,STATUS,Initiation_Type";
+									columnValues = "'" + application_number + "','Ready','Initiation'" ;
+
+									apInsertInputXML = CommonMethods.apInsert(cabinetName, sessionId, columnNames, columnValues, "NG_DCC_EFMS_CONTROLTABLE");
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertInputXML: " + apInsertInputXML);
+
+									apInsertOutputXML = CommonMethods.WFNGExecute(apInsertInputXML, sJtsIp, iJtsPort, 1);
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertOutputXML: " + apInsertOutputXML);
+
+									XMLParser xmlParserAPInsert_CT = new XMLParser(apInsertOutputXML);
+									String apInsertMaincode_CT = xmlParserAPInsert_CT.getValueOf("MainCode");
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Status of apInsertMaincode  " + apInsertMaincode_CT);
+
+									if (apInsertMaincode_CT.equalsIgnoreCase("0")) {
+										DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert successful: " + apInsertMaincode_CT);
+									} else 
+									{
+										processingFlag="FAIL";
+										errorType="ServerSideError";
+										DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert failed: " + apInsertMaincode_CT);
+									}
+								} else {
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert failed with maincode: " + apInsertMaincode);
+									processingFlag="FAIL";
+									errorType="ServerSideError";
+								}
+
+							}
+							else
+							{
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Apselect failed with main code: " + xmlParserData_Ext.getValueOf("MainCode"));
+								processingFlag="FAIL";
+								errorType="ServerSideError";
+							}
+						} else if (iTotalrec > 0) {
+							String xmlDataExtTab = xmlParserData.getNextValueOf("Record");
+							xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+							if (xmlParserData.getValueOf("STATUS").equals("Done")) {
+								
+								//DBQuery = "select top 1 isnull(Case_status,'') as Case_status,isnull(APPLICATION_STATUS,'') as APPLICATION_STATUS from "+ tableUpdate+" with (nolock) where Application_Number ='"+application_number+"' and isValid = 'Y' order by SNO desc";
+								DBQuery = "select top 1 isnull(APPLICATION_STATUS,'') as APPLICATION_STATUS from "+ tableUpdate+" with(nolock) where Application_Number ='"+application_number+"' and isValid = 'Y' order by SNO desc";
+								extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(), CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false));
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Input xml for selecting statusfrom efms response table : " + extTabDataIPXML);
+								extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("output xml for selecting statusfrom efms response table : " + extTabDataOPXML);
+
+								xmlParserData = new XMLParser(extTabDataOPXML);
+								iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+								if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0")) {
+									String APPLICATION_STATUS = "";
+									//String Case_status = "";
+									if(!"".equalsIgnoreCase(xmlParserData.getValueOf("APPLICATION_STATUS").trim())){
+										APPLICATION_STATUS = xmlParserData.getValueOf("APPLICATION_STATUS").trim();
+									}
+									/*if(!"".equalsIgnoreCase(xmlParserData.getValueOf("Case_status").trim()))
+									{
+										Case_status = (xmlParserData.getValueOf("Case_status").trim()).toLowerCase();
+									}*/
+									if ((APPLICATION_STATUS != null && !"".equalsIgnoreCase(APPLICATION_STATUS) && !"Alerted".equalsIgnoreCase(APPLICATION_STATUS)))
+									{
+										doneWI(cabinetName, sJtsIp, iJtsPort, sessionId, processInstanceID, WorkItemID, entryDateTime, ActivityID, ActivityType, ProcessDefId, APPLICATION_STATUS);
+									}
+								}
+								else
+								{
+									DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Apselect failed with main code: " + xmlParserData.getValueOf("MainCode"));
+									processingFlag="FAIL";
+									errorType="ServerSideError";
+								}
+								
+							}
+						}
+					}
+					else
+					{
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Apselect failed with main code: " + mainCode);
+						processingFlag="FAIL";
+						errorType="ServerSideError";
+					}
+					if("FAIL".equalsIgnoreCase(processingFlag))
+					{
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Apselect failed with main code: " + mainCode);
+						sendMail( cabinetName,sessionId, errorType ,processInstanceID, sJtsIp, iJtsPort);
+						routeToErrorHandling(cabinetName,sJtsIp,iJtsPort,sessionId,processInstanceID, WorkItemID, entryDateTime, ActivityID, ActivityType, ProcessDefId,"Error in getting EFMS Status");
+					}
+				}
+			}
+			//Deepak change done to fetch more than 100 cases
+			if(fetchWorkitemListCount>99){
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Inside if condition to fech next set of cases post 100 processInstanceId: "+processInstanceId+ " lastWorkItemId: " + lastWorkItemId );
+				insertDataInEFMSTable(cabinetName, sJtsIp, iJtsPort, sessionId, queueID, processInstanceId, lastWorkItemId, entryDateTime);
+			}
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+		}
+	}
+
+	private void doneWI(String cabinetName, String sJtsIp, String iJtsPort, String sessionId, String processInstanceID, String WorkItemID, String entryDateTime, String ActivityID, String ActivityType,
+			String ProcessDefId, String AlertStatusFlag) throws IOException, Exception, ParseException {
+		
+		String status="";
+		
+		String columnNames1 = "EFMS_Status";
+		String columnValues1 = "'"+ AlertStatusFlag +"'";
+		String sWhereClause2 = "Wi_Name = '" + processInstanceID + "'";
+
+		String extTableIPUpdateXml1 = CommonMethods.apUpdateInput(CommonConnection.getCabinetName(), CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false), 
+				DCCExtTable, columnNames1, columnValues1, sWhereClause2);
+		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Input XML for apUpdateInput for  NG_DCC_EXTTABLE  Table : " + extTableIPUpdateXml1);
+
+		String extTableOPUpdateXml1 = CommonMethods.WFNGExecute(extTableIPUpdateXml1, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Output XML for apUpdateInput for NG_DCC_EXTTABLE Table : " + extTableOPUpdateXml1);
+
+		String decisionValue = "";
+		String attributesTag = "";
+		String ErrDesc = "";
+		if (AlertStatusFlag.equalsIgnoreCase("Non-Alerted") || AlertStatusFlag.equalsIgnoreCase("Closed")) {
+			decisionValue = "Approve";
+			attributesTag = "<Decision>" + decisionValue + "</Decision>";
+			if (AlertStatusFlag.equalsIgnoreCase("Non-Alerted"))
+				ErrDesc = "EFMS status is Non-Alerted";
+			else 
+				ErrDesc = "EFMS closed as False Positive";
+		} else {
+			decisionValue = "Reject";
+			attributesTag = "<Decision>" + decisionValue + "</Decision>";
+			ErrDesc = "EFMS status is Confirm Fraud";
+		}
+		
+		XMLParser sXMLParserChild1 = new XMLParser(extTableOPUpdateXml1);
+		String StrMainCode = sXMLParserChild1.getValueOf("MainCode");
+
+		if (StrMainCode.equals("0")) {
+			
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("WorkItem moved to next Workstep.");
+			
+			SimpleDateFormat inputDateformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+			SimpleDateFormat outputDateFormat = new SimpleDateFormat("dd-MMM-yyyy hh:mm:ss a");
+
+			Date entryDatetimeFormat = inputDateformat.parse(entryDateTime);
+			String formattedEntryDatetime = outputDateFormat.format(entryDatetimeFormat);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("FormattedEntryDatetime: " + formattedEntryDatetime);
+
+			Date actionDateTime = new Date();
+			String formattedActionDateTime = outputDateFormat.format(actionDateTime);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("FormattedActionDateTime: " + formattedActionDateTime);
+
+			// Insert in WIHistory Table. wi_name, workstep, Decision, decision_date_time, Remarks, user_name, dec_date
+			String columnNames = "WI_NAME,dec_date,WORKSTEP,USER_NAME,DECISION,ENTRY_DATE_TIME,REMARKS";
+			String columnValues = "'" + processInstanceID + "','" + formattedActionDateTime + "','" + ActivityName + "'," + "'System','" + decisionValue + "','"
+					+ formattedEntryDatetime + "','" + ErrDesc + "'";
+
+			String apInsertInputXML = CommonMethods.apInsert(cabinetName, sessionId, columnNames, columnValues, "NG_DCC_GR_DECISION_HISTORY");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertInputXML: " + apInsertInputXML);
+
+			String apInsertOutputXML = CommonMethods.WFNGExecute(apInsertInputXML, sJtsIp, iJtsPort, 1);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertOutputXML: " + apInsertOutputXML);
+
+			XMLParser xmlParserAPInsert = new XMLParser(apInsertOutputXML);
+			String apInsertMaincode = xmlParserAPInsert.getValueOf("MainCode");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Status of apInsertMaincode  " + apInsertMaincode);
+			
+			if (apInsertMaincode.equalsIgnoreCase("0")) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert into History successful: " + apInsertMaincode);
+			
+				// Lock Workitem.
+				String getWorkItemInputXML = CommonMethods.getWorkItemInput(cabinetName, sessionId, processInstanceID, WorkItemID);
+				String getWorkItemOutputXml = CommonMethods.WFNGExecute(getWorkItemInputXML, sJtsIp, iJtsPort, 1);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Output XML For WmgetWorkItemCall: " + getWorkItemOutputXml);
+	
+				XMLParser xmlParserGetWorkItem = new XMLParser(getWorkItemOutputXml);
+				String getWorkItemMainCode = xmlParserGetWorkItem.getValueOf("MainCode");
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("WmgetWorkItemCall Maincode:  " + getWorkItemMainCode);
+	
+				if (getWorkItemMainCode.trim().equals("0")) {
+						
+					//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Successful in apUpdateInput the record in : " + "NG_DCC_EXTTABLE");
+				
+					String assignWorkitemAttributeInputXML = "<?xml version=\"1.0\"?><WMAssignWorkItemAttributes_Input>" 
+							+ "<Option>WMAssignWorkItemAttributes</Option>" 
+							+ "<EngineName>" + cabinetName + "</EngineName>" 
+							+ "<SessionId>" + sessionId + "</SessionId>" 
+							+ "<ProcessInstanceId>" + processInstanceID + "</ProcessInstanceId>" 
+							+ "<WorkItemId>" + WorkItemID + "</WorkItemId>" 
+							+ "<ActivityId>" + ActivityID + "</ActivityId>" 
+							+ "<ProcessDefId>" + ProcessDefId + "</ProcessDefId>"
+							+ "<LastModifiedTime></LastModifiedTime>" 
+							+ "<ActivityType>" + ActivityType + "</ActivityType>" 
+							+ "<complete>D</complete>" 
+							+ "<AuditStatus></AuditStatus>"
+							+ "<Comments></Comments>" 
+							+ "<UserDefVarFlag>Y</UserDefVarFlag>" 
+							+ "<Attributes>" + attributesTag + "</Attributes>" 
+							+ "</WMAssignWorkItemAttributes_Input>";
+		
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("InputXML for assignWorkitemAttribute Call: " + assignWorkitemAttributeInputXML);
+		
+					String assignWorkitemAttributeOutputXML = CommonMethods.WFNGExecute(assignWorkitemAttributeInputXML, sJtsIp, iJtsPort, 1);
+		
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("OutputXML for assignWorkitemAttribute Call: " + assignWorkitemAttributeOutputXML);
+		
+					XMLParser xmlParserWorkitemAttribute = new XMLParser(assignWorkitemAttributeOutputXML);
+					String assignWorkitemAttributeMainCode = xmlParserWorkitemAttribute.getValueOf("MainCode");
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("AssignWorkitemAttribute MainCode: " + assignWorkitemAttributeMainCode);
+		
+					if (assignWorkitemAttributeMainCode.trim().equalsIgnoreCase("0")) {
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("AssignWorkitemAttribute Successful: " + assignWorkitemAttributeMainCode);
+		
+					} else {
+						status="NotDone";
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("AssignWorkitemAttribute failed: " + assignWorkitemAttributeMainCode);
+					}
+				}
+			
+			} else {
+				status="NotDone";
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert  into History failed: " + apInsertMaincode);
+			}
+		} else {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Error in Executing apUpdateInput sOutputXML : " + extTableOPUpdateXml1);
+			System.out.println("WMgetWorkItemCall failed: "+processInstanceID);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("WMgetWorkItemCall failed: "+processInstanceID);
+			status="NotDone";
+		}
+		
+		if("NotDone".equalsIgnoreCase(status))
+		{
+			sendMail( cabinetName,sessionId, "DoneWI" ,processInstanceID, sJtsIp, iJtsPort);
+		}
+	}
+	
+	private void routeToErrorHandling(String cabinetName, String sJtsIp, String iJtsPort, String sessionId, String processInstanceID, String WorkItemID, String entryDateTime, String ActivityID, String ActivityType,
+			String ProcessDefId,String ErrDesc) throws IOException, Exception, ParseException {
+		
+
+			String decisionValue = "Failed";
+			String attributesTag = "";
+			
+			attributesTag = "<Decision>" + decisionValue + "</Decision>";
+				
+			// Lock Workitem.
+			String getWorkItemInputXML = CommonMethods.getWorkItemInput(cabinetName, sessionId, processInstanceID, WorkItemID);
+			String getWorkItemOutputXml = CommonMethods.WFNGExecute(getWorkItemInputXML, sJtsIp, iJtsPort, 1);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Output XML For WmgetWorkItemCall: " + getWorkItemOutputXml);
+
+			XMLParser xmlParserGetWorkItem = new XMLParser(getWorkItemOutputXml);
+			String getWorkItemMainCode = xmlParserGetWorkItem.getValueOf("MainCode");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("WmgetWorkItemCall Maincode:  " + getWorkItemMainCode);
+
+			if (getWorkItemMainCode.trim().equals("0")) {
+					
+				//DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Successful in apUpdateInput the record in : " + "NG_DCC_EXTTABLE");
+			
+				String assignWorkitemAttributeInputXML = "<?xml version=\"1.0\"?><WMAssignWorkItemAttributes_Input>" 
+						+ "<Option>WMAssignWorkItemAttributes</Option>" 
+						+ "<EngineName>" + cabinetName + "</EngineName>" 
+						+ "<SessionId>" + sessionId + "</SessionId>" 
+						+ "<ProcessInstanceId>" + processInstanceID + "</ProcessInstanceId>" 
+						+ "<WorkItemId>" + WorkItemID + "</WorkItemId>" 
+						+ "<ActivityId>" + ActivityID + "</ActivityId>" 
+						+ "<ProcessDefId>" + ProcessDefId + "</ProcessDefId>"
+						+ "<LastModifiedTime></LastModifiedTime>" 
+						+ "<ActivityType>" + ActivityType + "</ActivityType>" 
+						+ "<complete>D</complete>" 
+						+ "<AuditStatus></AuditStatus>"
+						+ "<Comments></Comments>" 
+						+ "<UserDefVarFlag>Y</UserDefVarFlag>" 
+						+ "<Attributes>" + attributesTag + "</Attributes>" 
+						+ "</WMAssignWorkItemAttributes_Input>";
+	
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("InputXML for assignWorkitemAttribute Call: " + assignWorkitemAttributeInputXML);
+	
+				String assignWorkitemAttributeOutputXML = CommonMethods.WFNGExecute(assignWorkitemAttributeInputXML, sJtsIp, iJtsPort, 1);
+	
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("OutputXML for assignWorkitemAttribute Call: " + assignWorkitemAttributeOutputXML);
+	
+				XMLParser xmlParserWorkitemAttribute = new XMLParser(assignWorkitemAttributeOutputXML);
+				String assignWorkitemAttributeMainCode = xmlParserWorkitemAttribute.getValueOf("MainCode");
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("AssignWorkitemAttribute MainCode: " + assignWorkitemAttributeMainCode);
+	
+				if (assignWorkitemAttributeMainCode.trim().equalsIgnoreCase("0")) {
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("AssignWorkitemAttribute Successful: " + assignWorkitemAttributeMainCode);
+	
+					// Move Workitem to next Workstep
+	
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("WorkItem moved to next Workstep.");
+	
+					SimpleDateFormat inputDateformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+					SimpleDateFormat outputDateFormat = new SimpleDateFormat("dd-MMM-yyyy hh:mm:ss a");
+	
+					Date entryDatetimeFormat = inputDateformat.parse(entryDateTime);
+					String formattedEntryDatetime = outputDateFormat.format(entryDatetimeFormat);
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("FormattedEntryDatetime: " + formattedEntryDatetime);
+	
+					Date actionDateTime = new Date();
+					String formattedActionDateTime = outputDateFormat.format(actionDateTime);
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("FormattedActionDateTime: " + formattedActionDateTime);
+	
+					// Insert in WIHistory Table. wi_name, workstep, Decision, decision_date_time, Remarks, user_name, dec_date
+					String columnNames = "WI_NAME,dec_date,WORKSTEP,USER_NAME,DECISION,decision_date_time,REMARKS";
+					String columnValues = "'" + processInstanceID + "','" + formattedActionDateTime + "','" + ActivityName + "'," + "'System','" + decisionValue + "','"
+							+ formattedEntryDatetime + "','" + ErrDesc + "'";
+	
+					String apInsertInputXML = CommonMethods.apInsert(cabinetName, sessionId, columnNames, columnValues, "NG_DCC_GR_DECISION_HISTORY");
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertInputXML: " + apInsertInputXML);
+	
+					String apInsertOutputXML = CommonMethods.WFNGExecute(apInsertInputXML, sJtsIp, iJtsPort, 1);
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("APInsertOutputXML: " + apInsertOutputXML);
+	
+					XMLParser xmlParserAPInsert = new XMLParser(apInsertOutputXML);
+					String apInsertMaincode = xmlParserAPInsert.getValueOf("MainCode");
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Status of apInsertMaincode  " + apInsertMaincode);
+	
+					if (apInsertMaincode.equalsIgnoreCase("0")) {
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert successful: " + apInsertMaincode);
+					} else {
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("ApInsert failed: " + apInsertMaincode);
+					}
+				} else {
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("AssignWorkitemAttribute failed: " + assignWorkitemAttributeMainCode);
+				}
+			}
+	}
+
+	private static List<Map<String, String>> getDataFromDBMap(String query, String cabinetName, String sessionID, String jtsIP, String jtsPort) {
+		try {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Inside function getDataFromDB");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("getDataFromDB query is: " + query);
+			String InputXML = CommonMethods.apSelectWithColumnNames(query, cabinetName, sessionID);
+			List<Map<String, String>> temp = new ArrayList<Map<String, String>>();
+			String OutXml = WFNGExecute(InputXML, jtsIP, jtsPort, 1);
+			OutXml = OutXml.replaceAll("&", "#andsymb#");
+			Document recordDoc1 = MapXML.getDocument(OutXml);
+			NodeList records1 = recordDoc1.getElementsByTagName("Record");
+			if (records1.getLength() > 0) {
+				for (int i = 0; i < records1.getLength(); i++) {
+					Node n = records1.item(i);
+					Map<String, String> t = new HashMap<String, String>();
+					if (n.hasChildNodes()) {
+						NodeList child = n.getChildNodes();
+						for (int j = 0; j < child.getLength(); j++) {
+							Node n1 = child.item(j);
+							String column = n1.getNodeName();
+							String value = n1.getTextContent().replaceAll("#andsymb#", "&");
+							if (null != value && !"null".equalsIgnoreCase(value) && !"".equals(value)) {
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("getDataFromDBMap Setting value of " + column + " as " + value);
+								t.put(column, value);
+							} else {
+								DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("getDataFromDBMap Setting value of " + column + " as blank");
+								t.put(column, "");
+							}
+						}
+					}
+					temp.add(t);
+				}
+			}
+			return temp;
+		} catch (Exception ex) {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Exception in getDataFromDBMap method + " + printException(ex));
+			return null;
+		}
+
+	}
+
+	private static String validateValue(String value) {
+		if (value != null && !value.equals("") && !value.equalsIgnoreCase("null")) {
+			return value.trim();
+		}
+		return "";
+	}
+
+	public String ExecuteQuery_APProcedure(String ProcName, String Params, String cabinetName, String sessionId) {
+		WFInputXml wfInputXml = new WFInputXml();
+
+		wfInputXml.appendStartCallName("APProcedure_WithDBO", "Input");
+		wfInputXml.appendTagAndValue("ProcName", ProcName);
+		wfInputXml.appendTagAndValue("Params", Params);
+		wfInputXml.appendTagAndValue("EngineName", cabinetName);
+		wfInputXml.appendTagAndValue("SessionId", sessionId);
+		wfInputXml.appendEndCallName("APProcedure_WithDBO", "Input");
+		return wfInputXml.toString();
+	}
+
+	public String WFNGExecute(String ipXML, String serverIP, int serverPort, int flag) {
+		try {
+
+			String portNo = Integer.toString(serverPort);
+			if (portNo.startsWith("33"))
+				return WFCallBroker.execute(ipXML, serverIP, serverPort, 1);
+			else
+				return ngEjbClient.makeCall(serverIP, serverPort + "", "WebSphere", ipXML);
+		} catch (Exception e) {
+			return "";
+		}
+	}
+
+	protected static String WFNGExecute(String ipXML, String jtsServerIP, String serverPort, int flag) throws IOException, Exception {
+		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("In WF NG Execute : " + serverPort);
+		try {
+			if (serverPort.startsWith("33"))
+				return WFCallBroker.execute(ipXML, jtsServerIP, Integer.parseInt(serverPort), 1);
+			else
+				return ngEjbClient.makeCall(jtsServerIP, serverPort, "WebSphere", ipXML);
+		} catch (Exception e) {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception Occured in WF NG Execute : " + e.getMessage());
+			e.printStackTrace();
+			return "Error";
+		}
+	}
+
+	public static String getTagValue(String xml, String tag) throws ParserConfigurationException, SAXException, IOException {
+		if (xml != null && !xml.equals("")) {
+			Document doc = getDocument(xml);
+			NodeList nodeList = null;
+			int length = 0;
+			if (doc != null) {
+				nodeList = doc.getElementsByTagName(tag);
+				length = nodeList.getLength();
+			}
+
+			if (length > 0) {
+				Node node = nodeList.item(0);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Node : " + node);
+				if (node.getNodeType() == Node.ELEMENT_NODE) {
+					NodeList childNodes = node.getChildNodes();
+					String value = "";
+					int count = childNodes.getLength();
+					for (int i = 0; i < count; i++) {
+						Node item = childNodes.item(i);
+						if (item.getNodeType() == Node.TEXT_NODE) {
+							value += item.getNodeValue();
+						}
+					}
+					return value;
+				} else if (node.getNodeType() == Node.TEXT_NODE) {
+					return node.getNodeValue();
+				}
+			}
+		}
+		return "";
+	}
+
+	public static Document getDocument(String xml) throws ParserConfigurationException, SAXException, IOException {
+		Document doc = null;
+		try {
+			// Step 1: create a DocumentBuilderFactory
+			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+			dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+
+			// Step 2: create a DocumentBuilder
+			DocumentBuilder db = dbf.newDocumentBuilder();
+
+			// Step 3: parse the input file to get a Document object
+			doc = db.parse(new InputSource(new StringReader(xml)));
+		} catch (Exception ex) {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug(printException(ex));
+		} finally {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Inside finally block of getDocument method");
+
+		}
+		return doc;
+	}
+
+	public static String printException(Exception e) {
+		StringWriter sw = new StringWriter();
+		e.printStackTrace(new PrintWriter(sw));
+		String exception = sw.toString();
+		return exception;
+	}
+
+	private static int readConfig() {
+		Properties p = null;
+		try {
+
+			p = new Properties();
+			p.load(new FileInputStream(new File(System.getProperty("user.dir") + File.separator + "ConfigFiles" + File.separator + "DCC_EFMS_Integration_Config.properties")));
+
+			Enumeration<?> names = p.propertyNames();
+
+			while (names.hasMoreElements()) {
+				String name = (String) names.nextElement();
+				DCCSystemIntegrationMap.put(name, p.getProperty(name));
+			}
+		} catch (Exception e) {
+			return -1;
+		}
+		return 0;
+	}
+
+	private void readEFMSFiles() {
+		try
+		{
+			now = new Date();
+			Format formatter = new SimpleDateFormat("dd-MMM-yy");
+			sdate = formatter.format(now);
+			String sourcePath = txtFilePath+"\\"+inputPath;
+			String movedPath = txtFilePath+"\\"+successPath;
+			String failPath =txtFilePath+"\\"+errorPath;
+			String inProgressPath = txtFilePath+"\\"+sourceDestinaton;
+			File folder = new File(sourcePath);
+
+			filePath = sourcePath;
+
+			File files[] = folder.listFiles();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Number of files is "+ files.length);	
+			if(files.length == 0)
+			{
+				Thread.sleep(10000);
+			}
+			else
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("files is not null");
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Total files for processing folder: "+files.length);
+
+				for(int i=files.length-1;i>=0;i--)	
+				{
+					String TempsourcePath = "";
+					String TempfailPath = "";
+					String TempinProgressPath = "";
+					String TempmovedPath = "";
+					file = files[i].getName();
+					msg = getMsgAsString(file);//returns the file content as a String
+					if(msg.length()<=0  || msg.equalsIgnoreCase("blank"))
+					{
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("No Data in File : " + file);
+						TempsourcePath = ""+sourcePath+"\\"+file+"";
+						TempfailPath = failPath+"\\"+sdate;
+						TimeStamp=get_timestamp();
+						newFilename = Move(TempfailPath,TempsourcePath,TimeStamp,true);//file is moved to NoDataFile flder
+						continue;
+					}
+					else if((msg.equalsIgnoreCase("error")))
+					{
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Error in source file : " + file);
+						TempsourcePath = ""+sourcePath+"\\"+file+"";
+						TempfailPath = failPath+"\\"+sdate;
+						TimeStamp=get_timestamp();
+						newFilename = Move(TempfailPath,TempsourcePath,TimeStamp,true);//file is moved to NoDataFile flder
+						continue;
+					} else {
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Move file to In progress folder: " + file);
+						TempinProgressPath = inProgressPath;
+						TempsourcePath = ""+sourcePath+"\\"+file+"";
+						TimeStamp=get_timestamp();
+						newFilename = Move(TempinProgressPath,TempsourcePath,TimeStamp,false);
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info(" file moved to In progress folder: " + file);
+
+						String finalSourcePath = TempinProgressPath+"\\"+newFilename;
+						DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info(" finalSourcePath: " + finalSourcePath);
+						updateStatus = readTextFile(finalSourcePath,newFilename,cabinetName,sessionID, jtsIP, Integer.parseInt(jtsPort),tableUpdate);
+						if(updateStatus.equalsIgnoreCase("Success"))
+						{
+							//System.out.println("ng_RLOS_SR_IPP_OFFLINE table successfully updated");
+							DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("ng_efms_response table successfully updated");
+
+							//TempsourcePath = ""+sourcePath+"\\"+file+"";
+							TempmovedPath = movedPath+"\\"+sdate;
+							TimeStamp=get_timestamp();
+							newFilename = Move(TempmovedPath,finalSourcePath,TimeStamp,true);//file is moved to NoDataFile flder
+							continue;
+
+						}
+						else
+						{
+							//System.out.println("ng_RLOS_SR_IPP_OFFLINE table updation failed");
+							DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("ng_efms_response table updation failed");
+
+							TempsourcePath = ""+sourcePath+"\\"+file+"";
+							TempfailPath = failPath+"\\"+sdate;
+							TimeStamp=get_timestamp();
+							newFilename = Move(TempfailPath,finalSourcePath,TimeStamp,true);//file is moved to NoDataFile flder
+							continue;
+						}
+					}
+				}
+			}
+		}
+
+		catch (Exception e)
+		{
+			//e.printStackTrace();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception: " + e.toString());
+		}	
+		finally
+		{
+			System.gc();
+		}
+	}
+
+
+	public String getMsgAsString(String file) throws IOException
+	{
+		FileReader fr = null;
+		BufferedReader br = null;
+		String msg = "";
+		try
+		{
+			if(filePath!=null && file!=null) {
+				// ProcessData.addToTextArea("inside get msg as string method");
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("inside get msg as string method");
+				char[] c = { 0x0D, 0x0A };
+				String crlf = new String(c);
+				fr = new FileReader(filePath+"\\"+file);
+				br = new BufferedReader(fr);
+				String line = br.readLine();
+				while(line!=null)
+				{
+					msg += line.trim()+crlf;
+					line = br.readLine();
+				}
+				int msgLength = msg.length();
+				if(msgLength == 0)
+				{
+					msg = "blank";
+				}
+				else
+				{
+					msg = msg.substring(0,msgLength-crlf.length());
+				}
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("completion : get msg as string method");
+			}
+		}
+		catch(Exception e)
+		{
+			final Writer result = new StringWriter();
+			final PrintWriter printWriter = new PrintWriter(result);
+			//e.printStackTrace(printWriter);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Exception while converting the file into String : "+result.toString());
+			msg = "error";
+		}
+		finally {
+			if (null != fr) {
+				fr.close();
+			}
+			if (null != br) {
+				br.close();
+			}
+		}
+		return msg;
+	}
+	
+	public String get_timestamp()
+	{
+		Date present = new Date();
+		Format pformatter = new SimpleDateFormat("dd-MM-yyyy-hhmmss");
+		TimeStamp=pformatter.format(present);
+		return TimeStamp;
+	}
+
+	public String Move(String pstrDestFolderPath, String pstrFilePathToMove,String append,boolean flag ) 
+	{
+		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Inside Move  : "+pstrDestFolderPath+" : "+pstrFilePathToMove);
+		String lstrExceptionId = "Text_Read.Move";
+		try 
+		{
+
+			// Destination directory
+			File lobjDestFolder = new File(pstrDestFolderPath);
+
+			if (!lobjDestFolder.exists()) 
+			{
+
+				lobjDestFolder.mkdirs();
+
+				//delete destination file if it already exists
+				//////////////
+			}
+			File lobjFileTemp;
+			File lobjFileToMove = new File(pstrFilePathToMove);
+			String orgFileName=lobjFileToMove.getName();
+
+			if(flag){
+				newFilename=orgFileName.substring(0,orgFileName.indexOf("."))+"_"+append+orgFileName.substring(orgFileName.indexOf("."));
+				lobjFileTemp = new File(pstrDestFolderPath + File.separator + newFilename);
+			}else{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("orgFileName::"+orgFileName);
+				newFilename=orgFileName;
+				lobjFileTemp = new File(pstrDestFolderPath+ File.separator + newFilename );
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("lobjFileTemp::"+lobjFileTemp);
+			}
+			if (lobjFileTemp.exists()) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("lobjFileTemp exists");
+				if (!lobjFileTemp.isDirectory()) {
+					lobjFileTemp.delete();
+				} else {
+					deleteDir(lobjFileTemp);
+				}
+			} 
+			else 
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("lobjFileTemp dont exists");
+				lobjFileTemp = null;
+			}
+			File lobjNewFolder ;
+			// if(flag){
+			lobjNewFolder = new File(lobjDestFolder, newFilename);
+			/* }else{
+            	 lobjNewFolder = lobjDestFolder;
+            }*/
+
+
+			boolean lbSTPuccess = false;
+			try 
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("lobjFileToMove::"+lobjFileToMove);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("lobjNewFolder::"+lobjNewFolder);
+				lbSTPuccess = lobjFileToMove.renameTo(lobjNewFolder);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("lbSTPuccess::"+lbSTPuccess);
+			} 
+			catch (SecurityException lobjExp) 
+			{
+
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("SecurityException " + lobjExp.toString());
+			} 
+			catch (NullPointerException lobjNPExp) 
+			{
+
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("NullPointerException " + lobjNPExp.toString());
+			} 
+			catch (Exception lobjExp) 
+			{
+
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Exception " + lobjExp.toString());
+			}
+			if (!lbSTPuccess) 
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Failure while moving " + lobjFileToMove.getAbsolutePath());
+			} 
+			else 
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Success while moving " + lobjFileToMove.getName() + "to" + pstrDestFolderPath);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Success while moving " + lobjFileToMove.getName() + "to" + lobjNewFolder);
+			}
+			lobjDestFolder = null;
+			lobjFileToMove = null;
+			lobjNewFolder = null;
+		} 
+		catch (Exception lobjExp) 
+		{
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info(lstrExceptionId + " : " + "Exception occurred while moving " + pstrFilePathToMove + " to " +
+					":" + lobjExp.toString());
+
+		}
+
+		return newFilename;
+	}
+
+	public static boolean deleteDir(File dir) throws Exception {
+		if (dir.isDirectory()) {
+			String[] lstrChildren = dir.list();
+			for (int i = 0; i < lstrChildren.length; i++) {
+				boolean success = deleteDir(new File(dir, lstrChildren[i]));
+				if (!success) {
+					return false;
+				}
+			}
+		}
+
+		// The directory is now empty so delete it
+		return dir.delete();
+	}
+
+	public String readTextFile(String txtFilePath,String fileName,String cabinetName,String sessionId,String jtsIP,int jtsPort,String tableUpdate)
+	{
+		String updateFlag = "";
+		try{
+			Map<String, ArrayList<ArrayList<String>>> mCompletevalue= new LinkedHashMap<String,ArrayList<ArrayList<String>>>();
+
+			//System.out.println("txtFilePath "+ txtFilePath);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("txtFilePath "+ txtFilePath);
+			mCompletevalue=readTextFile(txtFilePath);
+
+			//ArrayList<ArrayList<String>> ArrLstFileHeader= new ArrayList<ArrayList<String>>();
+			//ArrayList<String> ArrLstFileColumn= new ArrayList<String>();
+			ArrayList<ArrayList<String>> ArrLstFileRecords= new ArrayList<ArrayList<String>>();
+
+			String sSplit ="";
+			String sSplitColumn ="";
+			//String finalColumns="";
+			String firstValues="";
+			//String headerArray[];
+			for (Entry<String, ArrayList<ArrayList<String>>> entry : mCompletevalue.entrySet())
+			{
+				if(entry.getKey().equalsIgnoreCase("2")){
+
+					ArrLstFileRecords=entry.getValue();
+					for (int iIncCnt = 0; iIncCnt < ArrLstFileRecords.size(); iIncCnt++) 
+					{
+						sSplit = ArrLstFileRecords.get(iIncCnt).toString().trim();
+						updateFlag = updateDBTable(sSplit,fileName,tableUpdate,cabinetName);
+					}
+				}
+			}
+		}catch (Exception e) {
+			// TODO: handle exception
+		}
+		return updateFlag;
+		
+		
+		
+		
+	}
+
+	public String updateDBTable(String finalValues , String fileName, String tableUpdate, String cabinetName)
+	{
+
+		String columnName = "";
+		String[] columnValues;
+		String sWhere = "";
+		String tableStatus="success";
+		String outputXML = null;
+		String inputXml2="";
+		String UpdateValues = "";
+		String inputXML = "";
+		String InsertValues = "";
+		String ApplicationNumber = "";
+		String CaseOwner = "";
+		String CaseStatus = "";
+		String CloseDateTime = "";
+		String mainCodeforAPInsert="";
+		XMLParser objXMLParser = new XMLParser();
+
+		try
+		{
+			if (finalValues.contains("[") || finalValues.contains("]"))
+				finalValues = finalValues.replace("[", "").replace("]", "");
+			columnValues = finalValues.split(",",-1);
+			if (fileName.contains(ApplicationFileName)) {
+				columnName = ApplicationInsertColumn;
+				SimpleDateFormat formatter = new SimpleDateFormat("ddMMMyy:HH:mm:ss");
+				String dateInString = columnValues[3];
+				Date date = formatter.parse(dateInString);
+				SimpleDateFormat formatter1 = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
+				String sDate = formatter1.format(date);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info(" date value" + sDate);
+
+				InsertValues = "'" + columnValues[0] + "','" + columnValues[1] + "','" + columnValues[2] + "'," + "Cast('" + sDate + "' as datetime)" + ",'" + columnValues[4] + "','Y'";
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info(" Insert values" + InsertValues);
+
+					sessionCheckInt=0;
+			        while(sessionCheckInt<loopCount)
+			        {
+			            try
+			            {
+			                
+			            	inputXML = CommonMethods.apInsert(cabinetName, sessionID, columnName, InsertValues, tableUpdate);
+							DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Insert No" + inputXML);
+							outputXML = CommonMethods.WFNGExecute(inputXML, jtsIP, jtsPort, 1);
+							DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Insert No outXml" + outputXML);
+			                objXMLParser.setInputXML(outputXML);
+			                mainCodeforAPInsert=objXMLParser.getValueOf("MainCode");
+			            }
+						
+						catch(Exception e)
+			            {
+			                e.printStackTrace();
+			                tableStatus = "Failure";
+			                DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception in inserting efms file data --", e);
+			                sessionCheckInt++;
+			                waiteloopExecute(waitLoop);
+			                continue;
+			            }
+			            if (mainCodeforAPInsert.equalsIgnoreCase("11")) 
+			            {
+			                DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Invalid session in inserting efms file data");
+			                sessionCheckInt++;
+			                tableStatus = "Failure";
+			                //ThreadConnect.sessionId = ThreadConnect.getSessionID(cabinetName, jtsIP, jtsPort, userName,password);
+			                sessionID=CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, true);
+			                continue;
+			            }
+			            else
+			            {
+			                sessionCheckInt++;
+			                break;
+			            }
+			        }
+			        if(mainCodeforAPInsert.equalsIgnoreCase("0"))
+			        {
+			            DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("EFMS Data insert successful for file "+fileName);
+			        }
+			        else
+			        {
+			            DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("EFMS Data Insert Unsuccessful for file "+fileName);
+			            tableStatus = "Failure";
+			        }
+			}
+			else if(fileName.contains(AlertFileName))
+			{
+				columnName = AlertedUpdateColumn;
+				ApplicationNumber =	columnValues[0];
+				CaseOwner	=	columnValues[2];
+				CaseStatus	=	columnValues[3];
+				CloseDateTime =   columnValues[4];
+				SimpleDateFormat formatter = new SimpleDateFormat("ddMMMyy:HH:mm:ss");
+				Date date = formatter.parse(CloseDateTime);
+				SimpleDateFormat formatter1 = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
+				String sDate = formatter1.format(date);
+				// DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info(" date value"+sDate);
+				//columnName = columnName+",isValid";
+				//columnName = columnName;
+				//UpdateValues = "'"+ CaseOwner +"','"+ CaseStatus  +"',"+"Cast('"+sDate+"' as datetime),'Y'";
+				UpdateValues = "'"+ CaseOwner +"','"+ CaseStatus  +"',"+"Cast('"+sDate+"' as datetime)";
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Alerted File update values"+UpdateValues);
+				sWhere = "APPLICATION_NUMBER ='" + ApplicationNumber + "'";
+				
+				
+				sessionCheckInt=0;
+		        while(sessionCheckInt<loopCount)
+		        {
+		        	try
+		        	{
+
+		        		inputXml2 =	CommonMethods.apUpdateInput(cabinetName, sessionID, tableUpdate, columnName, UpdateValues, sWhere);
+		        		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info(" update No"+inputXml2);
+		        		outputXML=CommonMethods.WFNGExecute(inputXml2,jtsIP,jtsPort,1);
+		        		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("update No outXml"+outputXML);
+		        		objXMLParser.setInputXML(outputXML);
+		        		mainCodeforAPInsert=objXMLParser.getValueOf("MainCode");
+		        		if(mainCodeforAPInsert.equalsIgnoreCase("0"))
+		        		{
+		        			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("EFMS Data upadte successful for file "+fileName);
+		        			break;
+		        		}
+		        		else if (mainCodeforAPInsert.equalsIgnoreCase("11")) 
+		        		{
+		        			sessionCheckInt++;
+		        			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Invalid session in updating efms file data");
+		        			sessionCheckInt++;
+		        			//tableStatus = "Failure";
+		        			//ThreadConnect.sessionId = ThreadConnect.getSessionID(cabinetName, jtsIP, jtsPort, userName,password);
+		        			sessionID=CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, true);
+		        			continue;
+		        		}
+		        		else
+		        		{
+		        			tableStatus = "Failure";
+		        			sessionCheckInt++;
+		        			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("EFMS Data update Unsuccessful for file "+fileName);
+		        			break;
+		        		}
+		        	}
+
+		        	catch(Exception e)
+		        	{
+		        		e.printStackTrace();
+		        		tableStatus = "Failure";
+		        		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception in updating efms file data --", e);
+		        		sessionCheckInt++;
+		        		waiteloopExecute(waitLoop);
+		        		continue;
+		        	}
+
+		        }
+		       
+				
+				
+			}
+			/*XMLParser lobjXMLParser = new XMLParser();
+			lobjXMLParser.setInputXML(outputXML);
+			String  outCode = lobjXMLParser.getValueOf("MainCode");
+			if(!"0".equalsIgnoreCase(outCode)) {
+				tableStatus = "Failure";
+			}else if("1".equalsIgnoreCase(outCode)){
+				//checkAndCompleteWI(wi_name);
+			}
+			return tableStatus;*/
+		}
+		catch (Exception e){
+			tableStatus = "Failure";
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Error in reading file: " + e.getMessage());
+		}
+		return tableStatus;
+	}
+
+	private Map<String, ArrayList<ArrayList<String>>> readTextFile(String file) 
+	{
+		FileInputStream fileInputStream =null;
+		DataInputStream DataInputStream = null;
+		BufferedReader InputStreamReader = null;
+
+		Map<String, ArrayList<ArrayList<String>>> mCompletevalue= new LinkedHashMap<String,ArrayList<ArrayList<String>>>();
+
+
+		//mLogger.info("file readTextFile "+ file);
+		try 
+
+		{
+			fileInputStream = new FileInputStream(file);
+			DataInputStream = new DataInputStream(fileInputStream);
+			InputStreamReader = new BufferedReader(new InputStreamReader(DataInputStream));
+			String strLine;
+
+			//String last, line;
+			String[] fields ;
+			String[] columnName ;
+			String[] columnNameFirst = null;
+			int count = 0;
+			//String finalColumns="";
+
+			String finalValues="";
+			String firstValues="";
+			ArrayList<ArrayList<String>> ArrLstFileHeader = new ArrayList<ArrayList<String>>();
+			ArrayList<ArrayList<String>> ArrLstFileRecords = new ArrayList<ArrayList<String>>();
+			while ((strLine = InputStreamReader.readLine()) != null)   {
+				count= ++count;
+				ArrayList<String> ArrLstFileValues = new ArrayList<String>();
+				ArrayList<String> ArrLstFileFirst = new ArrayList<String>();
+
+				if(count==1){
+					fields = strLine.split("H\\|",+1);
+					for(int i=0; i<fields.length; i++){
+						columnNameFirst =  fields[i].split("\\|",-1);
+						/*datecreation = columnNameFirst[1];
+						bussinessName = columnNameFirst[2];
+						fileName = columnNameFirst[3];*/
+					}
+
+					firstValues=columnNameFirst[0]+","+columnNameFirst[1]+","+columnNameFirst[2]+","+columnNameFirst[3]+","+columnNameFirst[4];
+					ArrLstFileFirst.add(firstValues);
+					ArrLstFileHeader.add(ArrLstFileFirst);
+					mCompletevalue.put("1",ArrLstFileHeader);
+				}
+				else {
+					if("T".equalsIgnoreCase(strLine.substring(0, 1))){
+					}else{
+						fields = strLine.split("H\\|",+1);
+						for(int i=0; i<fields.length; i++){
+							columnName =  fields[i].split("\\|",-1);
+							for(int j=0; j<columnName.length; j++){
+								finalValues=finalValues+","+columnName[j];
+							}
+							finalValues=finalValues.substring(1, finalValues.length());
+							ArrLstFileValues.add(finalValues);
+							ArrLstFileRecords.add(ArrLstFileValues);
+							mCompletevalue.put("2",ArrLstFileRecords);
+							finalValues="";
+						}
+					}
+				}                     
+			}
+		} 
+		catch (Exception e) 
+		{
+			System.err.println("Error is reading configuration file = " + e);
+			try {
+				if(DataInputStream!=null) {
+					DataInputStream.close();
+				}
+				if(InputStreamReader!=null) {
+					InputStreamReader.close();
+				}
+				if(fileInputStream!=null) {
+					fileInputStream.close();
+				}
+			}catch(Exception x) {
+
+			}
+
+		}
+		finally{
+			try{
+				if(DataInputStream!=null) {
+					DataInputStream.close();
+				}
+				if(InputStreamReader!=null) {
+					InputStreamReader.close();
+				}
+				if(fileInputStream!=null) {
+					fileInputStream.close();
+				}
+			}
+			catch(Exception e){
+			}
+		} 
+		return mCompletevalue;
+	}
+	public String executeMurahabhaCalls(String processInstanceID,String ws_name,String WorkItemID,String entryDateTime,String ActivityType)
+	{
+		String status="";
+		String errorDesc="";
+		try
+		{
+			String islamicflag=isIslamic(processInstanceID);
+			if("Y".equalsIgnoreCase(islamicflag))
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Execute Murabha calls--");
+				String query="select ResponseFlag from NG_DCC_MURABAHA_RESPONSE_DATA  with(nolock) where wi_name='"+processInstanceID+"'";
+				
+				String MURABAHAIPXML = CommonMethods.apSelectWithColumnNames(query,cabinetName,sessionID);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataIPXML: " + MURABAHAIPXML);
+				String MURABAHAIPXMLOPXML = CommonMethods.WFNGExecute(MURABAHAIPXML,jtsIP,jtsPort, 1);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML: " + MURABAHAIPXMLOPXML);
+	
+				XMLParser xmlParserData = new XMLParser(MURABAHAIPXMLOPXML);
+				int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+				String mainCode=xmlParserData.getValueOf("MainCode");
+				String responseflag= xmlParserData.getValueOf("ResponseFlag");
+				if("0".equalsIgnoreCase(mainCode) && (iTotalrec==0 || !"SUCCESS".equalsIgnoreCase(responseflag)) )
+				{
+					DCC_MurabahaDealIntegration  MurahabaObj = new DCC_MurabahaDealIntegration(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger);
+					String MurabhaCallsStatus=MurahabaObj.MurabahaReqDeal(cabinetName, jtsIP, jtsPort, sessionID, processInstanceID, socketConnectionTimeout, integrationWaitTime, socketDetailsMap, TrialTime, ErrorCount, ws_name,"1");
+					if("Success".equalsIgnoreCase(MurabhaCallsStatus))
+					{
+						return "Success";
+					}
+					else
+					{
+						status="F";
+					}
+				}
+				else if(iTotalrec>0 && "SUCCESS".equalsIgnoreCase(responseflag))
+				{
+					return "Success";
+				}
+				else
+				{
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Some error occured in getting Murahabha Response flag--" +mainCode);
+					status="F";
+				}
+			}
+			else if("N".equalsIgnoreCase(islamicflag))
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Case is not islamic!");
+				return "Success";
+			}
+			else
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Some error occured in getting ISLAMIC flag-");
+				status="F";
+			}
+			
+		}
+		catch(Exception e)
+		{
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception in executing Murahabha calls-"+e.toString());
+			status="F";
+		}
+		
+		if("F".equalsIgnoreCase(status))
+		{
+			try {
+				sendMail( cabinetName,sessionID, "Murabha" ,processInstanceID, jtsIP, jtsPort);
+				routeToErrorHandling(cabinetName,jtsIP,jtsPort,sessionID,processInstanceID, WorkItemID, entryDateTime, ActivityID, ActivityType, ProcessDefId,"Error in Murabha Execution");
+				
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception in sending mail-"+e.toString());
+			}
+			return "Error";
+		}
+		return "Success";
+	}
+	private String isIslamic(String processInstanceID)
+	{
+		String isIslamic="";
+		try
+		{
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Check if the case  is Islamic--");
+			String query="select Product from NG_DCC_EXTTABLE  with(nolock) where wi_name='"+processInstanceID+"'";
+			
+			String ISLAMIC_CHECK_IPXML = CommonMethods.apSelectWithColumnNames(query,cabinetName,sessionID);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataIPXML: " + ISLAMIC_CHECK_IPXML);
+			String ISLAMIC_CHECK_OPXML = CommonMethods.WFNGExecute(ISLAMIC_CHECK_IPXML,jtsIP,jtsPort, 1);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("extTabDataOPXML: " + ISLAMIC_CHECK_OPXML);
+
+			XMLParser xmlParserData = new XMLParser(ISLAMIC_CHECK_OPXML);
+			int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+			String mainCode=xmlParserData.getValueOf("MainCode");
+			String poduct= xmlParserData.getValueOf("Product");
+			if("0".equalsIgnoreCase(mainCode) )
+			{
+				if(iTotalrec>0)
+				{
+					if("ISL".equalsIgnoreCase(poduct))
+					{
+						isIslamic="Y";
+					}
+					else
+						isIslamic="N";	
+				}
+				else
+				{
+					DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Islamic data is not available for this item--" +processInstanceID);
+					isIslamic="E";	
+				}
+			}
+			else
+			{
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Some error occured in getting product--" +mainCode);
+				isIslamic="E";	
+			}
+		}
+		catch (Exception e)
+		{
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception in isIslamic method--" +e.toString());
+			isIslamic="E";
+		}
+		return isIslamic;
+	}
+	public  void sendMail(String cabinetName, String sessionId,String failedEvent ,String wiName,String jtsIp,String jtsPort)throws Exception
+    {
+        XMLParser objXMLParser = new XMLParser();
+        String sInputXML="";
+        String sOutputXML="";
+        String mainCodeforAPInsert=null;
+        sessionCheckInt=0;
+        while(sessionCheckInt<loopCount)
+        {
+            try
+            {
+                String mailSubject = "";
+                String MailStr = "";
+                
+                if ("ServerSideError".equalsIgnoreCase(failedEvent))
+                {
+                    mailSubject = "Internal Server Error";
+                    MailStr = "<html><body>Dear BPM Support Team,<br><br>Some error has occured at server side while processing Workitem "+wiName+" at EFMS integration Queue. Kindly verify the item at error handling.<br><br>Regards,<br>RAKBANK<br>* This is an automated email, please do not reply.</body></html>";
+                } 
+                else if ("DoneWI".equalsIgnoreCase(failedEvent))
+                {
+                    mailSubject = "Error in Routing";
+                    MailStr = "<html><body>Dear BPM Support Team,<br><br>Some error has occured while routing Workitem "+wiName+" from EFMS integration Queue. Kindly verify the item at error handling.<br><br>Regards,<br>RAKBANK<br>* This is an automated email, please do not reply.</body></html>";
+                } 
+                else if ("Murabha".equalsIgnoreCase(failedEvent))
+                {
+                    mailSubject = "Error in Murabha";
+                    MailStr = "<html><body>Dear BPM Support Team,<br><br>Some error has occured while executing Murabha calls for Workitem "+wiName+". Kindly verify the item at error handling.<br><br>Regards,<br>RAKBANK<br>* This is an automated email, please do not reply.</body></html>";
+                }
+                
+                String columnName = "mailFrom,mailTo,mailSubject,mailMessage,mailContentType,mailPriority,mailStatus,mailActionType,insertedTime,processDefId,workitemId,activityId,noOfTrials,zipFlag";
+                String strValues = "'"+fromMailID+"','"+toMailID+"','"+mailSubject+"','"+MailStr+"','text/html;charset=UTF-8','1','N','TRIGGER','"+CommonMethods.getdateCurrentDateInSQLFormat()+"','"+ProcessDefId+"','1','"+ActivityID+"','0','N'";
+				
+				sInputXML = "<?xml version=\"1.0\"?>" +
+                        "<APInsert_Input>" +
+                        "<Option>APInsert</Option>" +
+                        "<TableName>WFMAILQUEUETABLE</TableName>" +
+                        "<ColName>" + columnName + "</ColName>" +
+                        "<Values>" + strValues + "</Values>" +
+                        "<EngineName>" + cabinetName + "</EngineName>" +
+                        "<SessionId>" + sessionId + "</SessionId>" +
+                        "</APInsert_Input>";
+                DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Mail Insert InputXml::::::::::\n"+sInputXML);
+                sOutputXML =WFNGExecute(sInputXML, jtsIP, jtsPort, 0 );
+                DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Mail Insert OutputXml::::::::::\n"+sOutputXML);
+                objXMLParser.setInputXML(sOutputXML);
+                mainCodeforAPInsert=objXMLParser.getValueOf("MainCode");
+            }
+			
+			catch(Exception e)
+            {
+                e.printStackTrace();
+                DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception in Sending mail", e);
+                sessionCheckInt++;
+                waiteloopExecute(waitLoop);
+                continue;
+            }
+            if (mainCodeforAPInsert.equalsIgnoreCase("11")) 
+            {
+                DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Invalid session in Sending mail");
+                sessionCheckInt++;
+                //ThreadConnect.sessionId = ThreadConnect.getSessionID(cabinetName, jtsIP, jtsPort, userName,password);
+                sessionID=CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, true);
+                continue;
+            }
+            else
+            {
+                sessionCheckInt++;
+                break;
+            }
+        }
+        if(mainCodeforAPInsert.equalsIgnoreCase("0"))
+        {
+            DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("mail Insert Successful");
+        }
+        else
+        {
+            DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("mail Insert Unsuccessful");
+        }
+    }
+	
+	
+	public static void waiteloopExecute(long wtime) {
+		try {
+			for (int i = 0; i < 10; i++) {
+				Thread.yield();
+				Thread.sleep(wtime / 10);
+			}
+		} catch (InterruptedException e) {
+		}
+	}
+
+	//Calculate DOJ formate should be YYYY-MM-DD
+	public static Double CalculatLOS(String DOJ_Str) {
+		Double LOS = 0.00;
+		try {
+			Integer year = Integer.parseInt(DOJ_Str.split("-")[0]);
+			Integer month = Integer.parseInt(DOJ_Str.split("-")[1]);
+			Integer day = Integer.parseInt(DOJ_Str.split("-")[2]);
+			LocalDate DOJ = LocalDate.of(year,month,day);
+			LocalDate CD = LocalDate.now();
+			Period p = Period.between(DOJ, CD);
+			System.out.println(p.getMonths());
+			System.out.println(p.getYears());
+			
+			LOS += p.getYears();
+			LOS = LOS + p.getMonths()/100d;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return LOS;
+		}
+		
+		System.out.println(LOS);
+		return LOS;
+	}
+		
+}

@@ -1,0 +1,12 @@
+# Root logger option  . Possible Options : TRACE,DEBUG,INFO,WARN,ERROR,FATAL,ALL
+log4j.rootLogger=ALL
+
+log4j.category.DAO_prime_Logger=ALL, DAO_prime_Logger
+log4j.additivity.DAO_prime_Logger=false
+
+log4j.appender.DAO_prime_Logger=org.apache.log4j.RollingFileAppender  
+log4j.appender.DAO_prime_Logger.File=Logs/DAO_PrimeCBS_Logs/DAO_PrimeCBS_Log.xml
+log4j.appender.DAO_prime_Logger.MaxFileSize=10000KB
+log4j.appender.DAO_prime_Logger.MaxBackupIndex=100
+log4j.appender.DAO_prime_Logger.layout=org.apache.log4j.PatternLayout
+log4j.appender.DAO_prime_Logger.layout.ConversionPattern=[%5p] %d{dd-MMM-yyyy HH:mm:ss} (%F:%L)%n%m%n%n

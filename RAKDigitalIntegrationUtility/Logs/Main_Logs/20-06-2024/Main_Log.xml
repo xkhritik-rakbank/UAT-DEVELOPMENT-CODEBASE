@@ -1,0 +1,63 @@
+[ INFO] 20-Jun-2024 18:09:07 (RAKDigitalIntegrationUtility.java:85)
+Starting Utility
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:99)
+Inside ConnectCabinet
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:147)
+In WF NG Execute : 3333
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:177)
+Output XML: <?xml version="1.0"?>
+<APSelectWithColumnNames_Output>
+<Option>APSelectWithColumnNames</Option>
+<Exception>
+<MainCode>0</MainCode>
+</Exception>
+<Output>
+	<Records>
+	</Records>
+	<TotalRetrieved>0</TotalRetrieved>
+</Output></APSelectWithColumnNames_Output>
+
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:191)
+SessionID: 
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:114)
+Input XML for Connect Cabinet: <?xml version="1.0"?>
+<WMConnect_Input>
+<Option>WMConnect</Option>
+<EngineName>rakcas</EngineName>
+<Participant>
+<Name>xom</Name>
+<Password>xxxx</Password>
+<Scope></Scope>
+<UserExist>N</UserExist>
+<Locale>en-us</Locale>
+<ParticipantType>U</ParticipantType>
+</Particpant>
+</WMConnect_Input>
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:147)
+In WF NG Execute : 3333
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:117)
+Connect cabinet output: <?xml version="1.0"?>
+<WMConnect_Output>
+<Option>WMConnect</Option>
+<Exception>
+<MainCode>0</MainCode>
+</Exception>
+<Participant>
+<SessionId>1911379823</SessionId><ID>4387</ID><LastLoginTime>2024-06-20 15:11:20.72</LastLoginTime><IsAdmin>Y</IsAdmin><Privileges>1111111111111111</Privileges>
+</Participant>
+<LastLoginTime>2024-06-20 15:11:20.72</LastLoginTime><LastLoginFailureTime></LastLoginFailureTime><FailureAttemptCount>0</FailureAttemptCount><TimeZoneInfo><DBServer><OffSet>240</OffSet></DBServer></TimeZoneInfo></WMConnect_Output>
+
+
+[DEBUG] 20-Jun-2024 18:09:11 (CommonConnection.java:123)
+Connected to cabinet successfully: 1911379823
+
+[ INFO] 20-Jun-2024 18:09:11 (RAKDigitalIntegrationUtility.java:289)
+DPL LMS Started
+

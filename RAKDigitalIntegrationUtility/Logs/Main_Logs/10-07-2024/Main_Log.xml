@@ -1,0 +1,98 @@
+[ INFO] 10-Jul-2024 11:52:30 (RAKDigitalIntegrationUtility.java:85)
+Starting Utility
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:99)
+Inside ConnectCabinet
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:147)
+In WF NG Execute : 3333
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:177)
+Output XML: <?xml version="1.0"?>
+<APSelectWithColumnNames_Output>
+<Option>APSelectWithColumnNames</Option>
+<Exception>
+<MainCode>0</MainCode>
+</Exception>
+<Output>
+	<Records>
+	</Records>
+	<TotalRetrieved>0</TotalRetrieved>
+</Output></APSelectWithColumnNames_Output>
+
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:191)
+SessionID: 
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:114)
+Input XML for Connect Cabinet: <?xml version="1.0"?>
+<WMConnect_Input>
+<Option>WMConnect</Option>
+<EngineName>rakcas</EngineName>
+<Participant>
+<Name>xom</Name>
+<Password>xxxx</Password>
+<Scope></Scope>
+<UserExist>N</UserExist>
+<Locale>en-us</Locale>
+<ParticipantType>U</ParticipantType>
+</Particpant>
+</WMConnect_Input>
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:147)
+In WF NG Execute : 3333
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:117)
+Connect cabinet output: <?xml version="1.0"?>
+<WMConnect_Output>
+<Option>WMConnect</Option>
+<Exception>
+<MainCode>0</MainCode>
+</Exception>
+<Participant>
+<SessionId>247207930</SessionId><ID>4387</ID><LastLoginTime>2024-07-10 09:41:52.637</LastLoginTime><IsAdmin>Y</IsAdmin><Privileges>1111111111111111</Privileges>
+</Participant>
+<LastLoginTime>2024-07-10 09:41:52.637</LastLoginTime><LastLoginFailureTime></LastLoginFailureTime><FailureAttemptCount>0</FailureAttemptCount><TimeZoneInfo><DBServer><OffSet>240</OffSet></DBServer></TimeZoneInfo></WMConnect_Output>
+
+
+[DEBUG] 10-Jul-2024 11:52:34 (CommonConnection.java:123)
+Connected to cabinet successfully: 247207930
+
+[ INFO] 10-Jul-2024 11:52:34 (RAKDigitalIntegrationUtility.java:196)
+DCC_EFMSIntegration Started
+
+[ INFO] 10-Jul-2024 11:52:57 (RAKDigitalIntegrationUtility.java:85)
+Starting Utility
+
+[DEBUG] 10-Jul-2024 11:53:00 (CommonConnection.java:99)
+Inside ConnectCabinet
+
+[DEBUG] 10-Jul-2024 11:53:00 (CommonConnection.java:147)
+In WF NG Execute : 3333
+
+[DEBUG] 10-Jul-2024 11:53:00 (CommonConnection.java:177)
+Output XML: <?xml version="1.0"?>
+<APSelectWithColumnNames_Output>
+<Option>APSelectWithColumnNames</Option>
+<Exception>
+<MainCode>0</MainCode>
+</Exception>
+<Output>
+	<Records>
+		<Record>
+			<SessionID>247207930</SessionID>
+		</Record>
+	</Records>
+	<TotalRetrieved>1</TotalRetrieved>
+</Output></APSelectWithColumnNames_Output>
+
+
+[DEBUG] 10-Jul-2024 11:53:00 (CommonConnection.java:191)
+SessionID: 247207930
+
+[DEBUG] 10-Jul-2024 11:53:00 (CommonConnection.java:107)
+got existng sessionid: 247207930
+
+[ INFO] 10-Jul-2024 11:53:02 (RAKDigitalIntegrationUtility.java:177)
+DCC_SystemIntegration Started
+

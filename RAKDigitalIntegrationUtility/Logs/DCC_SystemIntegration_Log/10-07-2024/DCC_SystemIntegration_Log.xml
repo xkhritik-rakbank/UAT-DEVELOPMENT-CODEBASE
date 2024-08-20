@@ -1,0 +1,138 @@
+[DEBUG] 10-Jul-2024 11:53:06 (DCC_System_Integration.java:68)
+Connecting to Cabinet.
+
+[DEBUG] 10-Jul-2024 11:53:06 (DCC_System_Integration.java:79)
+configReadStatus 0
+
+[DEBUG] 10-Jul-2024 11:53:06 (DCC_System_Integration.java:87)
+Cabinet Name: rakcas
+
+[DEBUG] 10-Jul-2024 11:53:06 (DCC_System_Integration.java:90)
+JTSIP: 10.15.12.164
+
+[DEBUG] 10-Jul-2024 11:53:06 (DCC_System_Integration.java:93)
+JTSPORT: 3333
+
+[DEBUG] 10-Jul-2024 11:53:08 (DCC_System_Integration.java:96)
+QueueID: 1920
+
+[DEBUG] 10-Jul-2024 11:53:08 (DCC_System_Integration.java:99)
+dplQueueID: null
+
+[DEBUG] 10-Jul-2024 11:53:08 (DCC_System_Integration.java:102)
+UserName: null
+
+[DEBUG] 10-Jul-2024 11:53:08 (DCC_System_Integration.java:106)
+SocketConnectionTimeOut: 60
+
+[DEBUG] 10-Jul-2024 11:53:09 (DCC_System_Integration.java:109)
+IntegrationWaitTime: 65
+
+[DEBUG] 10-Jul-2024 11:53:09 (DCC_System_Integration.java:112)
+SleepIntervalInMin: 1
+
+[DEBUG] 10-Jul-2024 11:53:09 (CommonConnection.java:99)
+Inside ConnectCabinet
+
+[DEBUG] 10-Jul-2024 11:53:09 (CommonConnection.java:147)
+In WF NG Execute : 3333
+
+[DEBUG] 10-Jul-2024 11:53:09 (CommonConnection.java:177)
+Output XML: <?xml version="1.0"?>
+<APSelectWithColumnNames_Output>
+<Option>APSelectWithColumnNames</Option>
+<Exception>
+<MainCode>0</MainCode>
+</Exception>
+<Output>
+	<Records>
+		<Record>
+			<SessionID>247207930</SessionID>
+		</Record>
+	</Records>
+	<TotalRetrieved>1</TotalRetrieved>
+</Output></APSelectWithColumnNames_Output>
+
+
+[DEBUG] 10-Jul-2024 11:53:09 (CommonConnection.java:191)
+SessionID: 247207930
+
+[DEBUG] 10-Jul-2024 11:53:09 (CommonConnection.java:107)
+got existng sessionid: 247207930
+
+[DEBUG] 10-Jul-2024 11:53:09 (DCC_System_Integration.java:122)
+Session ID found: 247207930
+
+[DEBUG] 10-Jul-2024 11:53:09 (DCC_System_Integration.java:127)
+DCC CIF Verification...123.
+
+[DEBUG] 10-Jul-2024 11:53:11 (CommonConnection.java:99)
+Inside ConnectCabinet
+
+[DEBUG] 10-Jul-2024 11:53:11 (CommonConnection.java:147)
+In WF NG Execute : 3333
+
+[DEBUG] 10-Jul-2024 11:53:11 (CommonConnection.java:177)
+Output XML: <?xml version="1.0"?>
+<APSelectWithColumnNames_Output>
+<Option>APSelectWithColumnNames</Option>
+<Exception>
+<MainCode>0</MainCode>
+</Exception>
+<Output>
+	<Records>
+		<Record>
+			<SessionID>247207930</SessionID>
+		</Record>
+	</Records>
+	<TotalRetrieved>1</TotalRetrieved>
+</Output></APSelectWithColumnNames_Output>
+
+
+[DEBUG] 10-Jul-2024 11:53:11 (CommonConnection.java:191)
+SessionID: 247207930
+
+[DEBUG] 10-Jul-2024 11:53:11 (CommonConnection.java:107)
+got existng sessionid: 247207930
+
+[DEBUG] 10-Jul-2024 11:53:11 (DCC_System_Integration.java:379)
+Fetching all Workitems on DCC_SysCheckIntegration queue
+
+[DEBUG] 10-Jul-2024 11:53:11 (DCC_System_Integration.java:383)
+InputXML for fetchWorkList Call: <?xml version="1.0"?>
+<WMFetchWorkItems_Input>
+<Option>WMFetchWorkItem</Option>
+<EngineName>rakcas</EngineName>
+<SessionID>247207930</SessionID>
+<QueueId>1920</QueueId>
+<BatchInfo>
+<NoOfRecordsToFetch>100</NoOfRecordsToFetch>
+<LastWorkItem></LastWorkItem>
+<LastValue></LastValue>
+<LastProcessInstance></LastProcessInstance>
+</BatchInfo>
+</WMFetchWorkItems_Input>
+
+
+[DEBUG] 10-Jul-2024 11:53:11 (DCC_System_Integration.java:386)
+WMFetchWorkList OutputXML: <?xml version="1.0"?>
+<WMFetchWorkItem_Output>
+<Option>WMFetchWorkItem</Option>
+<Exception>
+<MainCode>18</MainCode>
+</Exception>
+<RetrievedCount>0</RetrievedCount><Count>0</Count><WorkitemCount>0</WorkitemCount><AliasProcessDefId>0</AliasProcessDefId><LastModifiedOn>2024-02-28 10:57:32.073</LastModifiedOn><SessionId>247207930</SessionId><UserName>xom</UserName><QueueId>1920</QueueId></WMFetchWorkItem_Output>
+
+
+[DEBUG] 10-Jul-2024 11:53:11 (DCC_System_Integration.java:391)
+FetchWorkItemListMainCode: 18
+
+[DEBUG] 10-Jul-2024 11:53:11 (DCC_System_Integration.java:394)
+RetrievedCount for WMFetchWorkList Call: 0
+
+[DEBUG] 10-Jul-2024 11:53:11 (DCC_System_Integration.java:395)
+Number of workitems retrieved on DCC_SysCheckIntegration: 0
+
+[DEBUG] 10-Jul-2024 11:53:12 (DCC_System_Integration.java:131)
+No More workitems to Process, Sleeping!
+

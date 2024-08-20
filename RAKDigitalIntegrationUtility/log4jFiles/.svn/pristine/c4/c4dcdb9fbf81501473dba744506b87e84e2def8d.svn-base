@@ -1,0 +1,12 @@
+# Root logger option  . Possible Options : TRACE,DEBUG,INFO,WARN,ERROR,FATAL,ALL
+log4j.rootLogger=ALL
+
+log4j.category.DCC_FINAL_LIMIT_INC=ALL, DCC_FINAL_LIMIT_INC
+log4j.additivity.iRBLSysCheckIntegrationLogger=false
+
+log4j.appender.DCC_FINAL_LIMIT_INC=org.apache.log4j.RollingFileAppender  
+log4j.appender.DCC_FINAL_LIMIT_INC.File=Logs/DCC_FINAL_LIMIT_INC/DCC_FINAL_LIMIT_INC.xml
+log4j.appender.DCC_FINAL_LIMIT_INC.MaxFileSize=10000KB
+log4j.appender.DCC_FINAL_LIMIT_INC.MaxBackupIndex=100
+log4j.appender.DCC_FINAL_LIMIT_INC.layout=org.apache.log4j.PatternLayout
+log4j.appender.DCC_FINAL_LIMIT_INC.layout.ConversionPattern=[%5p] %d{dd-MMM-yyyy HH:mm:ss} (%F:%L)%n%m%n%n

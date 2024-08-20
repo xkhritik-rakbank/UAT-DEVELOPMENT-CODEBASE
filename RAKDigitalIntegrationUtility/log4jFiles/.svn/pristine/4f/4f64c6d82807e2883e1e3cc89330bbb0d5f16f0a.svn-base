@@ -1,0 +1,13 @@
+# Root logger option  . Possible Options : TRACE,DEBUG,INFO,WARN,ERROR,FATAL,ALL
+log4j.rootLogger=ALL
+
+log4j.category.DCC_CAM_Gen_LOG = ALL, DCC_CAM_Gen_LOG
+
+log4j.additivity.iRBLSysCheckIntegrationLogger=false
+
+log4j.appender.DCC_CAM_Gen_LOG =org.apache.log4j.RollingFileAppender  
+log4j.appender.DCC_CAM_Gen_LOG.File =Logs/DCC_CAM_Gen_LOG/DCC_CAM_Gen_LOG.xml
+log4j.appender.DCC_CAM_Gen_LOG.MaxFileSize=10000KB
+log4j.appender.DCC_CAM_Gen_LOG.MaxBackupIndex=100
+log4j.appender.DCC_CAM_Gen_LOG.layout=org.apache.log4j.PatternLayout
+log4j.appender.DCC_CAM_Gen_LOG.layout.ConversionPattern=[%5p] %d{dd-MMM-yyyy HH:mm:ss} (%F:%L)%n%m%n%n
