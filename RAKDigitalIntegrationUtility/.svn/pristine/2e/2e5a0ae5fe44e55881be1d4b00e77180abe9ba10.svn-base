@@ -1,0 +1,7 @@
+queueID=1411
+MQ_SOCKET_CONNECTION_TIMEOUT=60
+INTEGRATION_WAIT_TIME=65
+SleepIntervalInMin=1
+##path for IRBL process
+iRBL_GENERTATED_PDF_PATH = /PDFTemplates/generated/
+iRBL_LoadLogo = /PDFTemplates/template/Images/

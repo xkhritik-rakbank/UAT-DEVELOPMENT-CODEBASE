@@ -1,0 +1,20 @@
+<EE_EAI_MESSAGE>
+	<EE_EAI_HEADER>
+		<MsgFormat>MURABAHA_CONFIRMDEAL_REQ</MsgFormat>
+		<MsgVersion>0000</MsgVersion>
+		<RequestorChannelId>CAS</RequestorChannelId>
+		<RequestorUserId>RAKUSER</RequestorUserId>
+		<RequestorLanguage>E</RequestorLanguage>
+		<RequestorSecurityInfo>secure</RequestorSecurityInfo>
+		<ReturnCode>911</ReturnCode>
+		<ReturnDesc>Issuer Timed Out</ReturnDesc>
+		<MessageId>123123453</MessageId>
+		<Extra1>REQ||SHELL.JOHN</Extra1>
+		<Extra2>2011-10-06T16:43:21.504+04:00</Extra2>
+</EE_EAI_HEADER>
+ <MurabahaDealConfirmReq>
+  <TranStageCode>RAK_CC_Stage3</TranStageCode>  
+  <DocumentURI>URL</DocumentURI>
+ <TransactionKey>KEY</TransactionKey>
+</MurabahaDealConfirmReq>
+</EE_EAI_MESSAGE>

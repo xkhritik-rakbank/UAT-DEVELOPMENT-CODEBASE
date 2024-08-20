@@ -1,0 +1,26 @@
+<EE_EAI_MESSAGE>
+     <EE_EAI_HEADER>
+            <MsgFormat>NOTIFY_APPLICATION</MsgFormat>
+            <MsgVersion>0001</MsgVersion>
+            <RequestorChannelId>BPM</RequestorChannelId>
+            <RequestorUserId>RAKUSER</RequestorUserId>
+            <RequestorLanguage>E</RequestorLanguage>
+            <RequestorSecurityInfo>secure</RequestorSecurityInfo>
+            <ReturnCode>911</ReturnCode>
+            <ReturnDesc>Issuer Timed Out</ReturnDesc>
+            <MessageId>123123453</MessageId>
+            <Extra1>REQ||SHELL.JOHN</Extra1>
+            <Extra2>YYYY-MM-DDThh:mm:ss.mmm+hh:mm</Extra2>
+      </EE_EAI_HEADER>
+      <NotifyApplicationStatusRequest>
+	      <BankId>RAK</BankId>
+	      <Process_Name>DigitalAO</Process_Name>
+	      <ChannelId>DEH</ChannelId>
+	      <WorkitemNumber>Workitem_Number</WorkitemNumber>
+	      <ProspectId>prospect_id</ProspectId>
+	      <Event>STATUS</Event>
+	      <WorkItemStatus>WorkItem_Status</WorkItemStatus>
+	      <UpdProspectReqd>UpdProspect_Reqd</UpdProspectReqd>
+	      <AddnalDocsReqd>AddnalDocs_Reqd</AddnalDocsReqd> App_Details update_prospect Additional_Document_Details
+      </NotifyApplicationStatusRequest>
+</EE_EAI_MESSAGE>

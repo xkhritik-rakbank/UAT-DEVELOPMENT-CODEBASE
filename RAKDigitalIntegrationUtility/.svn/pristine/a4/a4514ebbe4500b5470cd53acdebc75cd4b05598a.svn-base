@@ -1,0 +1,10 @@
+cabinetName=rakcas
+wrapperIP=127.0.0.1
+wrapperPort=2809
+appServerType=WebSphere
+mqIP=10.15.12.164
+mqPort=6689
+mq_Integration_Ip=10.15.12.164
+mq_Integration_Port=5555
+gtIP=10.15.12.164
+gtPort=6688

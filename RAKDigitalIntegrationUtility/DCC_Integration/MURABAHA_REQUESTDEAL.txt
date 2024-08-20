@@ -1,0 +1,31 @@
+<EE_EAI_MESSAGE>
+	<EE_EAI_HEADER>
+		<MsgFormat>MURABAHA_REQUESTDEAL_REQ</MsgFormat>
+		<MsgVersion>0000</MsgVersion>
+		<RequestorChannelId>CAS</RequestorChannelId>
+		<RequestorUserId>RAKUSER</RequestorUserId>
+		<RequestorLanguage>E</RequestorLanguage>
+		<RequestorSecurityInfo>secure</RequestorSecurityInfo>
+		<ReturnCode>911</ReturnCode>
+		<ReturnDesc>Issuer Timed Out</ReturnDesc>
+		<MessageId>123123453</MessageId>
+		<Extra1>REQ||SHELL.JOHN</Extra1>
+		<Extra2>2011-10-06T16:43:21.504+04:00</Extra2>
+	</EE_EAI_HEADER>
+	<MurabahaDealReq>
+		<TranBankCode>RAKBANK</TranBankCode>
+		<TranClientCode>RAK_CUSTOMER</TranClientCode>
+		<TranFreeFormatClientName>CUSTOMERNAME</TranFreeFormatClientName>
+		<TranDealType>CREDIT_CARD_API</TranDealType>
+		<TranTradeDate>TradeDate</TranTradeDate>
+		<TranSettlementDate>SettlementDate</TranSettlementDate>
+		<TranMaturityDate>MaturityDate</TranMaturityDate>
+		<TranCurrency>AED</TranCurrency>
+		<TranPrincipal>Card_Limit</TranPrincipal>
+		<TranCommodity>PDZ</TranCommodity>
+		<TranYourReference>Prospect_id</TranYourReference>
+		<TranUserRef1>CRN_Str</TranUserRef1>
+		<TranUserRef2>ECRN_Str</TranUserRef2>
+		<TranClass>STANDARD</TranClass>
+	</MurabahaDealReq>
+</EE_EAI_MESSAGE>

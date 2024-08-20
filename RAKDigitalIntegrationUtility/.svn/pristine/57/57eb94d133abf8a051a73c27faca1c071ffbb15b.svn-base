@@ -1,0 +1,25 @@
+<EE_EAI_MESSAGE>
+	<EE_EAI_HEADER>
+		<MsgFormat>CREDITCARD_MAINTAINANCE</MsgFormat>
+		<MsgVersion>0001</MsgVersion>
+		<RequestorChannelId>CAS</RequestorChannelId>
+		<RequestorUserId>RAKUSER</RequestorUserId>
+		<RequestorLanguage>E</RequestorLanguage>
+		<RequestorSecurityInfo>secure</RequestorSecurityInfo>
+		<ReturnCode>911</ReturnCode>
+		<ReturnDesc>Issuer Timed Out</ReturnDesc>
+		<MessageId>123123453</MessageId>
+		<Extra1>REQ||SHELL.JOHN</Extra1>
+		<Extra2>YYYY-MM-DDThh:mm:ss.mmm+hh:mm</Extra2>
+	</EE_EAI_HEADER>
+	<CardMaintainance>
+		<BankId>RAK</BankId>
+		<CardCRN>CRN</CardCRN>
+		<CardNumber>Card_Number_ID</CardNumber>
+		<ReasonCode>LOST|41</ReasonCode>
+		<RequestType>AccountStatus</RequestType>
+		<CardType>Credit</CardType>
+		<FreeField1></FreeField1>
+		<FreeField2></FreeField2>
+	</CardMaintainance>
+</EE_EAI_MESSAGE>

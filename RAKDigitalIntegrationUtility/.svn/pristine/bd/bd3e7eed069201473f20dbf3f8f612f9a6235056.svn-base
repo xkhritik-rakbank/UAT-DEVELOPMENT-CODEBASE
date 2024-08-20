@@ -1,0 +1,336 @@
+package com.newgen.DCC.EFMS;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.XMLParser;
+import com.newgen.omni.wf.util.app.NGEjbClient;
+import com.newgen.wfdesktop.xmlapi.WFCallBroker;
+import com.newgen.wfdesktop.xmlapi.WFInputXml;
+
+
+
+public class DCC_EFMS_Integration implements Runnable {
+		
+		static Map<String, String> DCCSystemIntegrationMap = new HashMap<String, String>();
+		
+		static NGEjbClient ngEjbClient;
+		
+		@Override
+	public void run() {
+		try {
+			String sessionID = "";
+			String cabinetName = "";
+			String jtsIP = "";
+			String jtsPort = "";
+			String queueID = "";
+			int socketConnectionTimeout = 0;
+			int integrationWaitTime = 0;
+			int sleepIntervalInMin = 0;
+			int Utility_retry_count = 0; // Read from the config file
+			DCC_EFMS_IntegrationLog.setLogger();
+			ngEjbClient = NGEjbClient.getSharedInstance();
+
+			int configReadStatus = readConfig();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("configReadStatus " + configReadStatus);
+			if (configReadStatus != 0) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Could not Read Config Properties [DCC_EFMS_System_Integration_Config.properties]");
+				return;
+			}
+
+			cabinetName = CommonConnection.getCabinetName();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Cabinet Name: " + cabinetName);
+
+			jtsIP = CommonConnection.getJTSIP();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("JTSIP: " + jtsIP);
+
+			jtsPort = CommonConnection.getJTSPort();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("JTSPORT: " + jtsPort);
+
+			queueID = DCCSystemIntegrationMap.get("queueID");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("QueueID: " + queueID);
+
+			socketConnectionTimeout = Integer.parseInt(DCCSystemIntegrationMap.get("MQ_SOCKET_CONNECTION_TIMEOUT"));
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SocketConnectionTimeOut: " + socketConnectionTimeout);
+
+			integrationWaitTime = Integer.parseInt(DCCSystemIntegrationMap.get("INTEGRATION_WAIT_TIME"));
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("IntegrationWaitTime: " + integrationWaitTime);
+
+			sleepIntervalInMin = Integer.parseInt(DCCSystemIntegrationMap.get("SleepIntervalInMin"));
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SleepIntervalInMin: " + sleepIntervalInMin);
+
+			String WorkItemID = DCCSystemIntegrationMap.get("WorkItemId");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Current WorkItemID: " + WorkItemID);
+
+			String Utility_retry_count_str = DCCSystemIntegrationMap.get("INTEGRATION_WAIT_TIME");
+			Utility_retry_count = Integer.parseInt(Utility_retry_count_str);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Current WorkItemID: " + WorkItemID);
+
+			sessionID = CommonConnection.getSessionID(DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger, false);
+
+			if (sessionID.trim().equalsIgnoreCase("")) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Could Not Connect to Server!");
+			} else {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Session ID found: " + sessionID);
+				HashMap<String, String> socketDetailsMap = socketConnectionDetails(cabinetName, jtsIP, jtsPort, sessionID);
+				runStoredProcedure(Utility_retry_count, cabinetName, jtsIP, jtsPort, sessionID);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("EFMS ");
+			}
+
+		}
+
+		catch (Exception e) {
+			e.printStackTrace();
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception Occurred in DCC CIF Verification : " + e);
+			final Writer result = new StringWriter();
+			final PrintWriter printWriter = new PrintWriter(result);
+			e.printStackTrace(printWriter);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception Occurred in DCC CIF Verification : " + result);
+		}
+	}
+		
+		
+	public void runStoredProcedure(int Utility_retry_count, String cabinetName, String jtsIP, String jtsPort,
+			String sessionID) {
+		int Util_runing_rety_count = 0;
+		while (Util_runing_rety_count < Utility_retry_count) {
+			String Proc_name = "NG_RLOS_CaseRouting"; //TODO IMPLIMENTS THIS
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Inside process method where procedure need to be triggered");
+			String Proc_inputXMl = ExecuteQuery_APProcedure(Proc_name, "'10012'", cabinetName, sessionID); 
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Input xml for procedure" + Proc_inputXMl);
+
+			String outXml = null;
+			try {
+				outXml = WFNGExecute(Proc_inputXMl, jtsIP, jtsPort, 1);
+			} catch (Exception e) {
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Error : " + e.getMessage());
+				e.printStackTrace();
+			}
+
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("Output xml for apselect" + outXml);
+			int Proc_main_Code = getMainCode(outXml);
+			if (Proc_main_Code == 0) {
+				Util_runing_rety_count = Utility_retry_count;
+			} else if (Proc_main_Code == 11) {
+				// reconnectToWorkflow(); //TODO 
+				Util_runing_rety_count++;
+			} else {
+				Util_runing_rety_count = Utility_retry_count;
+			}
+		}
+	}
+
+	public String ExecuteQuery_APProcedure(String ProcName, String Params, String cabinetName, String sessionId) {
+		WFInputXml wfInputXml = new WFInputXml();
+
+		wfInputXml.appendStartCallName("APProcedure_WithDBO", "Input");
+		wfInputXml.appendTagAndValue("ProcName", ProcName);
+		wfInputXml.appendTagAndValue("Params", Params);
+		wfInputXml.appendTagAndValue("EngineName", cabinetName);
+		wfInputXml.appendTagAndValue("SessionId", sessionId);
+		wfInputXml.appendEndCallName("APProcedure_WithDBO", "Input");
+		return wfInputXml.toString();
+	}
+
+
+	public String WFNGExecute(String ipXML, String serverIP, int serverPort, int flag) {
+		try {
+
+			String portNo = Integer.toString(serverPort);
+			if (portNo.startsWith("33"))
+				return WFCallBroker.execute(ipXML, serverIP, serverPort, 1);
+			else
+				return ngEjbClient.makeCall(serverIP, serverPort + "", "WebSphere", ipXML);
+		} catch (Exception e) {
+			return "";
+		}
+	}
+
+	private int getMainCode(String xml) {
+		String code = "";
+		try {
+			code = getTagValue(xml, "MainCode");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.info("codeeeee: " + code);
+		} catch (Exception e) {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error(e);
+		}
+
+		int mainCode = -1;
+
+		try {
+			mainCode = Integer.parseInt(code);
+		} catch (NumberFormatException e) {
+			mainCode = -1;
+		} catch (Exception e) {
+			mainCode = -1;
+		}
+		return mainCode;
+	}
+
+		
+	protected static String WFNGExecute(String ipXML, String jtsServerIP, String serverPort, int flag)
+			throws IOException, Exception {
+		DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("In WF NG Execute : " + serverPort);
+		try {
+			if (serverPort.startsWith("33"))
+				return WFCallBroker.execute(ipXML, jtsServerIP, Integer.parseInt(serverPort), 1);
+			else
+				return ngEjbClient.makeCall(jtsServerIP, serverPort, "WebSphere", ipXML);
+		} catch (Exception e) {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.error("Exception Occured in WF NG Execute : " + e.getMessage());
+			e.printStackTrace();
+			return "Error";
+		}
+	}
+		
+	public static String getTagValue(String xml, String tag) throws ParserConfigurationException, SAXException, IOException {
+		if (xml != null && !xml.equals("")) {
+			Document doc = getDocument(xml);
+			NodeList nodeList = null;
+			int length = 0;
+			if (doc != null) {
+				nodeList = doc.getElementsByTagName(tag);
+				length = nodeList.getLength();
+			}
+
+			if (length > 0) {
+				Node node = nodeList.item(0);
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Node : " + node);
+				if (node.getNodeType() == Node.ELEMENT_NODE) {
+					NodeList childNodes = node.getChildNodes();
+					String value = "";
+					int count = childNodes.getLength();
+					for (int i = 0; i < count; i++) {
+						Node item = childNodes.item(i);
+						if (item.getNodeType() == Node.TEXT_NODE) {
+							value += item.getNodeValue();
+						}
+					}
+					return value;
+				} else if (node.getNodeType() == Node.TEXT_NODE) {
+					return node.getNodeValue();
+				}
+			}
+		}
+		return "";
+	}
+
+	public static Document getDocument(String xml) throws ParserConfigurationException, SAXException, IOException {
+		Document doc = null;
+		try {
+			// Step 1: create a DocumentBuilderFactory
+			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+			dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+
+			// Step 2: create a DocumentBuilder
+			DocumentBuilder db = dbf.newDocumentBuilder();
+
+			// Step 3: parse the input file to get a Document object
+			doc = db.parse(new InputSource(new StringReader(xml)));
+		} catch (Exception ex) {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug(printException(ex));
+		} finally {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Inside finally block of getDocument method");
+
+		}
+		return doc;
+	}
+		
+	public static String printException(Exception e){
+		StringWriter sw = new StringWriter();
+		e.printStackTrace(new PrintWriter(sw));
+		String exception = sw.toString();
+		return exception;	
+	}
+		
+	private static  int readConfig() {
+		Properties p = null;
+		try {
+
+			p = new Properties();
+			p.load(new FileInputStream(new File(System.getProperty("user.dir") + File.separator + "ConfigFiles" + File.separator + "DCC_EFMS_Integration_Config.properties")));
+
+			Enumeration<?> names = p.propertyNames();
+
+			while (names.hasMoreElements()) {
+				String name = (String) names.nextElement();
+				DCCSystemIntegrationMap.put(name, p.getProperty(name));
+			}
+		} catch (Exception e) {
+			return -1;
+		}
+		return 0;
+	}
+	
+	private static  HashMap<String, String> socketConnectionDetails(String cabinetName, String sJtsIp, String iJtsPort, String sessionID) {
+		HashMap<String, String> socketDetailsMap = new HashMap<String, String>();
+
+		try {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Fetching Socket Connection Details.");
+			System.out.println("Fetching Socket Connection Details.");
+
+			String socketDetailsQuery = "SELECT SocketServerIP,SocketServerPort FROM NG_BPM_MQ_TABLE with (nolock) where ProcessName = 'DCC' and CallingSource = 'Utility'";
+
+			String socketDetailsInputXML = CommonMethods.apSelectWithColumnNames(socketDetailsQuery, cabinetName, sessionID);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Socket Details APSelect InputXML: " + socketDetailsInputXML);
+
+			String socketDetailsOutputXML = WFNGExecute(socketDetailsInputXML, sJtsIp, iJtsPort, 1);
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("Socket Details APSelect OutputXML: " + socketDetailsOutputXML);
+
+			XMLParser xmlParserSocketDetails = new XMLParser(socketDetailsOutputXML);
+			String socketDetailsMainCode = xmlParserSocketDetails.getValueOf("MainCode");
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SocketDetailsMainCode: " + socketDetailsMainCode);
+
+			int socketDetailsTotalRecords = Integer.parseInt(xmlParserSocketDetails.getValueOf("TotalRetrieved"));
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SocketDetailsTotalRecords: " + socketDetailsTotalRecords);
+
+			if (socketDetailsMainCode.equalsIgnoreCase("0") && socketDetailsTotalRecords > 0) {
+				String xmlDataSocketDetails = xmlParserSocketDetails.getNextValueOf("Record");
+				xmlDataSocketDetails = xmlDataSocketDetails.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+
+				XMLParser xmlParserSocketDetailsRecord = new XMLParser(xmlDataSocketDetails);
+
+				String socketServerIP = xmlParserSocketDetailsRecord.getValueOf("SocketServerIP");
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SocketServerIP: " + socketServerIP);
+				socketDetailsMap.put("SocketServerIP", socketServerIP);
+
+				String socketServerPort = xmlParserSocketDetailsRecord.getValueOf("SocketServerPort");
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SocketServerPort " + socketServerPort);
+				socketDetailsMap.put("SocketServerPort", socketServerPort);
+
+				DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger.debug("SocketServer Details found.");
+				System.out.println("SocketServer Details found.");
+
+			}
+		} catch (Exception e) {
+			DCC_EFMS_IntegrationLog.DCC_EFMSIntegrationLogger
+					.debug("Exception in getting Socket Connection Details: " + e.getMessage());
+			System.out.println("Exception in getting Socket Connection Details: " + e.getMessage());
+		}
+
+		return socketDetailsMap;
+	}
+	
+}

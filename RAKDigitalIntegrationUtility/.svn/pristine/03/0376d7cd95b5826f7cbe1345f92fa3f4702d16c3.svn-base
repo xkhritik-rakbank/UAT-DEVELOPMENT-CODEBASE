@@ -1,0 +1,801 @@
+package com.newgen.DCC.Update_AssignCIF;
+
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.Socket;
+import java.net.SocketException;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.newgen.DCC.DECTECHIntegration.DECTECHSystemIntegrationLog;
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+
+import com.newgen.omni.jts.cmgr.XMLParser;
+
+public class DCC_DocumentGeneration {
+	
+	public static Logger DCC_DocumentGenerationLog=null;
+	public DCC_DocumentGeneration(Logger DCC_DocumentGenerationLogName)
+	{
+		DCC_DocumentGenerationLog=DCC_DocumentGenerationLogName;
+	}
+	
+
+	/*public String generate_CAM_ReportT(String pdfName, String Cif_Id, String processInstanceID, String sessionId)
+			throws IOException, Exception {
+
+		DCC_DocumentGenerationLog.debug("Inside generate cam report method: ");
+		
+
+		String prop_file_loc = System.getProperty("user.dir") + System.getProperty("file.separator") + "ConfigFiles"
+				+ System.getProperty("file.separator") + "DCC_CAMGen_Config.properties";
+		DCC_DocumentGenerationLog.debug("prop_file_loc: " + prop_file_loc);
+
+		File file = new File(prop_file_loc);
+		FileInputStream fileInput = new FileInputStream(file);
+		Properties properties = new Properties();
+		properties.load(fileInput);
+		fileInput.close();
+
+		String gtIP = properties.getProperty("gtIP");
+		DCC_DocumentGenerationLog.debug("gtIP: " + gtIP);
+
+		String gtPortProperty = properties.getProperty("gtPort");
+		DCC_DocumentGenerationLog.debug("gtPortProperty: " + gtPortProperty);
+
+		int gtPort = Integer.parseInt(gtPortProperty);
+		DCC_DocumentGenerationLog.debug("gtPort: " + gtPort);
+		
+		// for current date time 
+		Date d = new Date();
+		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		String CurrentDateTime = dateFormat.format(d);
+	
+		String Query = "select distinct Created_Date,Is_STP,CUSTOMERNAME,Nationality, "
+				+ "Product_Desc,Selected_Card_Type,card_application_date,Age,IPA_Limit,EFMS_Status,"
+				+ "Requested_Limit,FIRCO_Status, Employer_Name,Date_Of_Joining,Designation,employercode,"
+				+ "FinalDBR,Aecb_score,Final_Limit,DBR_lifeStyle_expenses,deviation_description,"
+				+ "delegation_authority,Score_range,Underwriting_decision,Decision from NG_DCC_EXTTABLE with (NOLOCK) where Wi_Name ='"
+				+ processInstanceID + "'";
+
+		// for user name and decision at cad analy 1
+
+		String Query2 = "select Top 1 user_name,Decision,Remarks,rejectReason from NG_DCC_GR_DECISION_HISTORY with (NOLOCK)  where wi_name ='"
+				+ processInstanceID + "' order by decision_date_time desc";
+
+		DCC_DocumentGenerationLog.debug("Query : " + Query);
+		DCC_DocumentGenerationLog.debug("Query2 : " + Query2);
+
+		String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(Query, CommonConnection.getCabinetName(),
+				CommonConnection.getSessionID(DCC_DocumentGenerationLog, false));
+		DCC_DocumentGenerationLog.debug("extTabDataIPXML: " + extTabDataIPXML);
+		String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		DCC_DocumentGenerationLog.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+		XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+
+		// **************************** for second query
+		// ************************
+		String extTabDataIPXML2 = CommonMethods.apSelectWithColumnNames(Query2, CommonConnection.getCabinetName(),
+				CommonConnection.getSessionID(DCC_DocumentGenerationLog, false));
+		DCC_DocumentGenerationLog.debug("extTabDataIPXML2: " + extTabDataIPXML2);
+		String extTabDataOPXML2 = CommonMethods.WFNGExecute(extTabDataIPXML2, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		DCC_DocumentGenerationLog.debug("extTabDataOPXML2: " + extTabDataOPXML2);
+
+		XMLParser xmlParserData2 = new XMLParser(extTabDataOPXML2);
+		// ****************************************************************************************
+		
+		// variables
+		String attrbList = "";
+		String Is_STP = xmlParserData.getValueOf("Is_STP");
+		DCC_DocumentGenerationLog.debug("Is_STP: " + Is_STP);
+
+		String Created_Date = xmlParserData.getValueOf("Created_Date");
+		DCC_DocumentGenerationLog.debug("Created_Date: " + Created_Date);
+
+		String CifId = xmlParserData.getValueOf("CifId");
+		String CUSTOMERNAME = xmlParserData.getValueOf("CUSTOMERNAME");
+		DCC_DocumentGenerationLog.debug("CUSTOMERNAME: " + CUSTOMERNAME);
+
+		String Nationality = xmlParserData.getValueOf("Nationality");
+		DCC_DocumentGenerationLog.debug("Nationality: " + Nationality);
+
+		String Product_Desc = xmlParserData.getValueOf("Product_Desc");
+		DCC_DocumentGenerationLog.debug("Product_Desc: " + Product_Desc);
+
+		String Selected_Card_Type = xmlParserData.getValueOf("Selected_Card_Type");
+		DCC_DocumentGenerationLog.debug("Selected_Card_Type: " + Selected_Card_Type);
+
+		String card_application_date = xmlParserData.getValueOf("card_application_date");
+		DCC_DocumentGenerationLog.debug("card_application_date: " + card_application_date);
+
+		String Age = xmlParserData.getValueOf("Age");
+		DCC_DocumentGenerationLog.debug("Age: " + Age);
+
+		String IPA_Limit = xmlParserData.getValueOf("IPA_Limit");
+		DCC_DocumentGenerationLog.debug("IPA_Limit: " + IPA_Limit);
+
+		String EFMS_Status = xmlParserData.getValueOf("EFMS_Status");
+		DCC_DocumentGenerationLog.debug("EFMS_Status: " + EFMS_Status);
+
+		String Requested_Limit = xmlParserData.getValueOf("Requested_Limit");
+		DCC_DocumentGenerationLog.debug("Requested_Limit: " + Requested_Limit);
+
+		String FIRCO_Status = xmlParserData.getValueOf("FIRCO_Status");
+		DCC_DocumentGenerationLog.debug("FIRCO_Status: " + FIRCO_Status);
+
+		String Employer_Name = xmlParserData.getValueOf("Employer_Name");
+		DCC_DocumentGenerationLog.debug("Employer_Name: " + Employer_Name);
+
+		String Date_Of_Joining = xmlParserData.getValueOf("Date_Of_Joining");
+		DCC_DocumentGenerationLog.debug("Date_Of_Joining: " + Date_Of_Joining);
+
+		String Designation = xmlParserData.getValueOf("Designation");
+		DCC_DocumentGenerationLog.debug("Designation: " + Designation);
+		
+		String employercode = xmlParserData.getValueOf("employercode");
+		DCC_DocumentGenerationLog.debug("employercode: " + employercode);
+
+		// employer status pl miss
+
+		String Final_Limit = xmlParserData.getValueOf("Final_Limit");
+		DCC_DocumentGenerationLog.debug("Final_Limit: " + Final_Limit);
+
+		// declared income miss
+
+		// final income - final limit
+
+		String Decision = xmlParserData.getValueOf("Decision");
+		DCC_DocumentGenerationLog.debug("Decision: " + Decision);
+
+		String Aecb_score = xmlParserData.getValueOf("Aecb_score");
+		DCC_DocumentGenerationLog.debug("Aecb_score: " + Aecb_score);
+
+		String Score_range = xmlParserData.getValueOf("Score_range");
+		DCC_DocumentGenerationLog.debug("Score_range: " + Score_range);
+
+		String FinalDBR = xmlParserData.getValueOf("FinalDBR");
+		DCC_DocumentGenerationLog.debug("FinalDBR: " + FinalDBR);
+
+		String DBR_lifeStyle_expenses = xmlParserData.getValueOf("DBR_lifeStyle_expenses");
+		DCC_DocumentGenerationLog.debug("DBR_lifeStyle_expenses: " + DBR_lifeStyle_expenses);
+
+		String deviation_description = xmlParserData.getValueOf("deviation_description");
+		DCC_DocumentGenerationLog.debug("deviation_description: " + deviation_description);
+
+		String delegation_authority = xmlParserData.getValueOf("delegation_authority");
+		DCC_DocumentGenerationLog.debug("delegation_authority: " + delegation_authority);
+
+		String Underwriting_decision = xmlParserData.getValueOf("Underwriting_decision");
+		DCC_DocumentGenerationLog.debug("Underwriting_decision: " + Underwriting_decision);
+
+		// *********************second query varr
+		String user_name = xmlParserData2.getValueOf("user_name");
+		DCC_DocumentGenerationLog.debug("user_name: " + user_name);
+
+		String Remarks = xmlParserData2.getValueOf("Remarks");
+		DCC_DocumentGenerationLog.debug("Remarks: " + Remarks);
+
+		String rejectReason = xmlParserData2.getValueOf("rejectReason");
+		DCC_DocumentGenerationLog.debug("rejectReason: " + rejectReason);
+
+		// third query ************************************
+		String sQueryDecisionHistory ="select top 1 COMPANY_STATUS_CC,COMPANY_STATUS_PL,EMPLOYER_CATEGORY_PL," +
+        "EMPLOYER_CATEGORY_PL_EXPAT,EMPLOYER_CATEGORY_PL_NATIONAL,INCLUDED_IN_CC_ALOC,INCLUDED_IN_PL_ALOC,cast(DATE_OF_INCLUSION_IN_CC_ALOC as date) as DATE_OF_INCLUSION_IN_CC_ALOC," +
+        "cast(DATE_OF_INCLUSION_IN_PL_ALOC as date) as DATE_OF_INCLUSION_IN_PL_ALOC,ALOC_REMARKS_PL from NG_RLOS_ALOC_OFFLINE_DATA with (nolock) where EMPLOYER_CODE='"+employercode+"'";
+
+		String extTabDataIPXMLDecisionHistory = CommonMethods.apSelectWithColumnNames(sQueryDecisionHistory, CommonConnection.getCabinetName(),
+				CommonConnection.getSessionID(DCC_DocumentGenerationLog, false));
+		DCC_DocumentGenerationLog.debug("extTabDataIPXMLDecisionHistory: " + extTabDataIPXMLDecisionHistory);
+		String extTabDataOPXMLDecisionHistory = CommonMethods.WFNGExecute(extTabDataIPXMLDecisionHistory, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		DCC_DocumentGenerationLog.debug("extTabDataOPXMLDecisionHistory: " + extTabDataOPXMLDecisionHistory);
+
+		XMLParser xmlParserDataDecisionHistory = new XMLParser(extTabDataOPXMLDecisionHistory);
+		
+		//********************************************************
+		
+		// variables define 
+		
+		String COMPANY_STATUS_CC = xmlParserDataDecisionHistory.getValueOf("COMPANY_STATUS_CC");
+		DCC_DocumentGenerationLog.debug("COMPANY_STATUS_CC: " + COMPANY_STATUS_CC);
+		
+		String COMPANY_STATUS_PL = xmlParserDataDecisionHistory.getValueOf("COMPANY_STATUS_PL");
+		DCC_DocumentGenerationLog.debug("COMPANY_STATUS_PL: " + COMPANY_STATUS_PL);
+		
+		String EMPLOYER_CATEGORY_PL = xmlParserDataDecisionHistory.getValueOf("EMPLOYER_CATEGORY_PL");
+		DCC_DocumentGenerationLog.debug("COMPANY_STATUS_PL: " + EMPLOYER_CATEGORY_PL);
+		
+		
+		
+		attrbList += "&<currentDateTime>&" + CurrentDateTime;
+		attrbList += "&<customerName>&" + CUSTOMERNAME;
+		attrbList += "&<nationality>&" + Nationality;
+		attrbList += "&<cardType>&" + Product_Desc;
+		attrbList += "&<card_application_date>&" + card_application_date;
+		attrbList += "&<cardApplicationDate>&" + card_application_date;
+		attrbList += "&<workitemNumber>&" + processInstanceID;
+		attrbList += "&<CIF>&" + Cif_Id;
+		attrbList += "&<age>&" + Age;
+		attrbList += "&<productType>&" + Product_Desc;
+		attrbList += "&<IPALimit>&" + IPA_Limit;
+		attrbList += "&<EFMSStatus>&" + EFMS_Status;
+		attrbList += "&<requestedLimit>&" + Requested_Limit;
+		attrbList += "&<fircoStatus>&" + FIRCO_Status;
+
+		attrbList += "&<employerName>&" + Employer_Name;
+		attrbList += "&<Date_Of_Joining>&" + Date_Of_Joining;
+		attrbList += "&<Designation>&" + Designation;
+		attrbList += "&<employercode>&" + employercode;
+		attrbList += "&<Final_Limit>&" + Final_Limit;
+		attrbList += "&<Score_range>&" + Score_range;
+		attrbList += "&<Aecb_score>&" + Aecb_score;
+		attrbList += "&<FinalDBR>&" + FinalDBR;
+		attrbList += "&<DBR_lifeStyle_expenses>&" + DBR_lifeStyle_expenses;
+		attrbList += "&<deviation_description>&" + deviation_description;
+		attrbList += "&<delegation_authority>&" + delegation_authority;
+		attrbList += "&<Underwriting_decision>&" + Underwriting_decision;
+		attrbList += "&<Decision>&" + Decision;
+
+		// **************/
+		/*attrbList += "&<user_name>&" + user_name;
+		attrbList += "&<Remarks>&" + Remarks;
+		attrbList += "&<rejectReason>&" + rejectReason;
+		
+		attrbList += "&<COMPANY_STATUS_CC>&" + COMPANY_STATUS_CC;
+		attrbList += "&<COMPANY_STATUS_PL>&" + COMPANY_STATUS_PL;
+		attrbList += "&<EMPLOYER_CATEGORY_PL>&" + EMPLOYER_CATEGORY_PL;
+		
+		String output = makeSocketCall(attrbList, processInstanceID, pdfName, sessionId, gtIP, gtPort);
+		
+		DCC_DocumentGenerationLog.debug("attrbList" + attrbList);
+		DCC_DocumentGenerationLog.debug("output" + output);
+		
+	
+
+		return attrbList;
+
+	}*/
+	
+	// method to generate template digital On bording  by deepanshu 
+	
+	public String generate_Document_Customer_Consent(String pdfName, String processInstanceID, String sessionId)
+	throws IOException, Exception {
+		
+		String attrbList = "";
+		String Output = "";
+		DCC_DocumentGenerationLog.debug("Inside the generate_template Method: ");
+		
+		String prop_file_loc = System.getProperty("user.dir") + System.getProperty("file.separator") + "ConfigFiles"
+		+ System.getProperty("file.separator") + "DCC_CAMGen_Config.properties";
+		DCC_DocumentGenerationLog.debug("prop_file_loc: " + prop_file_loc);
+		
+		File file = new File(prop_file_loc);
+		FileInputStream fileInput = new FileInputStream(file);
+		Properties properties = new Properties();
+		properties.load(fileInput);
+		fileInput.close();
+		
+		String gtIP = properties.getProperty("gtIP");
+		DCC_DocumentGenerationLog.debug("gtIP: " + gtIP);
+		
+		String gtPortProperty = properties.getProperty("gtPort");
+		DCC_DocumentGenerationLog.debug("gtPortProperty: " + gtPortProperty);
+		
+		int gtPort = Integer.parseInt(gtPortProperty);
+		DCC_DocumentGenerationLog.debug("gtPort: " + gtPort);
+		
+		// for current date time 
+		Date d = new Date();
+		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+		String CurrentDateTime = dateFormat.format(d);
+		
+		SimpleDateFormat dateFormat1 = new SimpleDateFormat("dd-MM-yyyy");
+		String wiCreatedDate = dateFormat1.format(d);
+		
+		//For Date in parse
+		//wiCreatedDate
+		/*String d1 = wiCreatedDate.substring(0,1);
+		String d2 = wiCreatedDate.substring(1,2);
+		String m1 = wiCreatedDate.substring(3,4);
+		String m2 = wiCreatedDate.substring(4,5);
+		String y1 = wiCreatedDate.substring(6,7);
+		String y2 = wiCreatedDate.substring(7,8);
+		String y3 = wiCreatedDate.substring(8,9);
+		String y4 = wiCreatedDate.substring(9,10);*/
+		//
+		
+		String cardDescription = "select card_type_desc from ng_dcc_master_cardType with(nolock) where card_type_code = (select top 1 Selected_Card_Type from NG_DCC_EXTTABLE with(nolock) where Wi_Name ='"+ processInstanceID + "')";
+		DCC_DocumentGenerationLog.debug("cardDescription : " + cardDescription);
+		String extTabDataIPXMLCardDescription = CommonMethods.apSelectWithColumnNames(cardDescription, CommonConnection.getCabinetName(),sessionId);
+		DCC_DocumentGenerationLog.debug("extTabDataIPXMLCardDescription : " + extTabDataIPXMLCardDescription);
+		
+		String extTabDataOPXMLCardDescription = CommonMethods.WFNGExecute(extTabDataIPXMLCardDescription, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		DCC_DocumentGenerationLog.debug("extTabDataOPXMLCardDescription template: " + extTabDataOPXMLCardDescription);
+		
+		XMLParser xmlParserDataCardDescription = new XMLParser(extTabDataOPXMLCardDescription);
+		//DCC_DocumentGenerationLog.debug("xmlParserDataCardDescription template: " + xmlParserDataCardDescription);
+		
+		
+		// for mrbh query 01-10-2022
+		//Updated  on 13012023 - to include city in emirates for mrbh - Kamran
+		String MRBHQuery = "select top 1 Address_Type,Emirate_Of_Residence, House_No AS applicant_residential_address_line1,Building_Name AS applicant_residential_address_line2,"
+				+ "Street_Name AS applicant_residential_address_line3,City AS applicant_residential_city,City_Desc AS applicant_residential_address_city,State_Desc AS applicant_residential_address_state,"
+				+ "Country_Desc AS applicant_residential_address_country,PO_Box_Address AS applicant_residential_address_POST_BOX from  "
+				+ "NG_DCC_GR_ADDRESS_DETAIL with(nolock) where wi_name = '" + processInstanceID + "'";
+
+		DCC_DocumentGenerationLog.debug("MRBHQuery : " + MRBHQuery);
+		String extTabDataIPXMLMRBH = CommonMethods.apSelectWithColumnNames(MRBHQuery, CommonConnection.getCabinetName(),sessionId);
+		DCC_DocumentGenerationLog.debug("extTabDataIPXMLMRBH : " + extTabDataIPXMLMRBH);
+		
+		String extTabDataOPXMLMRBH = CommonMethods.WFNGExecute(extTabDataIPXMLMRBH, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		DCC_DocumentGenerationLog.debug("extTabDataOPXMLMRBH template: " + extTabDataOPXMLMRBH);
+		
+		XMLParser xmlParserDataMRBH = new XMLParser(extTabDataOPXMLMRBH);
+		//DCC_DocumentGenerationLog.debug("xmlParserDataMRBH template: " + xmlParserDataMRBH);
+		
+		
+		
+		//*********************** query to fetch detail from db*************************
+		String tbQuery = "select distinct CUSTOMERNAME,Nationality_Desc,EmirateID,Prospect_Creation_Date, dob,FATCA_Tin_Number,Final_Limit as Amount,Prospect_id from NG_DCC_EXTTABLE with (NOLOCK) where Wi_Name ='"
+					+ processInstanceID + "'"; 
+		// second for normal query
+		DCC_DocumentGenerationLog.debug("tbQuery : " + tbQuery);
+		
+		String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(tbQuery, CommonConnection.getCabinetName(),sessionId);
+		DCC_DocumentGenerationLog.debug("extTabDataIPXML template: " + extTabDataIPXML);
+		String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		DCC_DocumentGenerationLog.debug("extTabDataOPXML template: " + extTabDataOPXML);
+
+		XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+		//DCC_DocumentGenerationLog.debug("xmlParserData template: " + xmlParserData);
+		
+		String strMainCode = xmlParserData.getValueOf("MainCode");
+		DCC_DocumentGenerationLog.debug("apSelectWithColumnNames for main code: "+strMainCode);
+		
+		String RetrievedCount = xmlParserData.getValueOf("TotalRetrieved");
+		DCC_DocumentGenerationLog.debug("RetrievedCount for apSelectWithColumnNames Call for retr: "+RetrievedCount);
+
+		//if condition
+		try {
+		
+			if ("0".equalsIgnoreCase(strMainCode) && !(RetrievedCount==null || "".equalsIgnoreCase(RetrievedCount)) && Integer.parseInt(RetrievedCount) >0)
+			{
+				String CUSTOMERNAMETemplate = xmlParserData.getValueOf("CUSTOMERNAME");
+				String NationalityTemplate = xmlParserData.getValueOf("Nationality_Desc");
+				String EmirateIDTemplate = xmlParserData.getValueOf("EmirateID");
+				String Card_ProductTemplate = xmlParserDataCardDescription.getValueOf("card_type_desc");
+				String WI_Creation_date = xmlParserDataCardDescription.getValueOf("Prospect_Creation_Date");
+				String Date_Of_Birth = xmlParserDataCardDescription.getValueOf("dob");
+				String Tin_Number = xmlParserData.getValueOf("FATCA_Tin_Number");
+				
+				
+				
+				
+				String preferred_address = xmlParserDataMRBH.getValueOf("Address_Type");
+				
+				String PO_Box  = "";
+				String PO_Box_Other = "";
+				String Emirates_oF_residence = "";
+				String Emirates_oF_residence_Other = "";
+				String Address_Line1 = "";
+				String Address_Line2 = "";
+				String Address_Line3 = "";
+				String Address_Line_Othetr = "";
+				String Address_Line_Other2 = "";
+				String  Address_Line_Other3 = "";
+				String city ="";
+				String State = "";
+				String city_Other ="";
+				String State_Other = "";
+				String Country  = "";
+				String Country_Other = "";
+				String portal_no="";
+				//Added by kamran 13012023
+				String city_emirates = "";
+				
+				if ("Residence".equalsIgnoreCase(preferred_address)) {
+					
+					 PO_Box = xmlParserDataMRBH.getValueOf("applicant_residential_address_POST_BOX");
+					 	//08122022 - Kamran -Updated below emirates to emirates_visa
+						//Emirates_oF_residence_Other = xmlParserDataMRBH.getValueOf("Emirate_Of_Residence");
+						Emirates_oF_residence_Other = xmlParserDataMRBH.getValueOf("Emirates_Visa");
+					 Address_Line1 = xmlParserDataMRBH.getValueOf("applicant_residential_address_line1");
+					 Address_Line2  = xmlParserDataMRBH.getValueOf("applicant_residential_address_line2");
+					 Address_Line3 = xmlParserDataMRBH.getValueOf("applicant_residential_address_line3");
+					 city = xmlParserDataMRBH.getValueOf("applicant_residential_address_city");
+					State = xmlParserDataMRBH.getValueOf("applicant_residential_address_state");
+					Country  = xmlParserDataMRBH.getValueOf("applicant_residential_address_country");
+					city_emirates = xmlParserDataMRBH.getValueOf("applicant_residential_city");
+				
+				}else{
+					PO_Box_Other = xmlParserDataMRBH.getValueOf("applicant_residential_address_POST_BOX");
+					//08122022 - Kamran -Updated below emirates to emirates_visa
+					//Emirates_oF_residence_Other = xmlParserDataMRBH.getValueOf("Emirate_Of_Residence");
+					Emirates_oF_residence_Other = xmlParserDataMRBH.getValueOf("Emirates_Visa");
+					Address_Line_Othetr = xmlParserDataMRBH.getValueOf("applicant_residential_address_line1");
+					 Address_Line_Other2  = xmlParserDataMRBH.getValueOf("applicant_residential_address_line2");
+					 Address_Line_Other3 = xmlParserDataMRBH.getValueOf("applicant_residential_address_line3");
+					 city_Other = xmlParserDataMRBH.getValueOf("applicant_residential_address_city");
+					State_Other = xmlParserDataMRBH.getValueOf("applicant_residential_address_state");
+					Country_Other = xmlParserDataMRBH.getValueOf("applicant_residential_address_state");
+					city_emirates = xmlParserDataMRBH.getValueOf("applicant_residential_city");
+					
+				}
+				portal_no = xmlParserData.getValueOf("Prospect_id");
+				String Address = Address_Line1 +" "+ Address_Line2+ " "+ Address_Line3;
+				String Address_Other = Address_Line_Othetr +" "+ Address_Line_Other2+ " "+ Address_Line_Other3;
+				
+				String Address2 = city+ " "+ State+" "+PO_Box;
+				String Address2_other = city_Other+ " "+ State_Other+" "+PO_Box_Other;
+				
+				
+				
+				DCC_DocumentGenerationLog.debug("CUSTOMERNAMETemplate: " + CUSTOMERNAMETemplate+ " Card_ProductTemplate: " + Card_ProductTemplate+" NationalityTemplate: " + NationalityTemplate+ "EmirateIDTemplate: " + EmirateIDTemplate + "WI_Creation_date: "+ WI_Creation_date +"Date_Of_Birth : "+Date_Of_Birth);
+				DCC_DocumentGenerationLog.debug("PO_Box: "+ PO_Box + "Emirates_oF_residence: "+ city_emirates + "preferred_address: "+ preferred_address+ "Address_Line1: " +Address_Line1 + "Address_Line2: "+ Address_Line2 +
+						"Address_Line3: "+ Address_Line3 + "Address: "+Address + "city: "+ city + "State; " + State + "Country: "+ Country + "Tin_Number: "+ Tin_Number+
+						"Address_Other: "+Address_Other +"PO_Box_Other: "+PO_Box_Other +"Emirates_oF_residence_Other: "+Emirates_oF_residence_Other);
+				DCC_DocumentGenerationLog.debug("city_Other: "+ city_Other + "State_Other: "+ State_Other + "Country_Other: "+ Country_Other + "Address2_other: "+Address2_other);
+				
+				// assign to attribute list  for conventional and islamic
+				
+				attrbList += "&<Date>&" + CurrentDateTime+"@10";
+				attrbList += "&<Date_Islamic>&" + CurrentDateTime+"@10";
+				
+				attrbList += "&<Customer_Name>&" + CUSTOMERNAMETemplate+"@10";				
+				attrbList += "&<Customer_Name_Islamic>&" + CUSTOMERNAMETemplate+"@10";
+				
+				attrbList += "&<EID_Number>&" + EmirateIDTemplate+"@10";
+				attrbList += "&<EID_Number_Islamic>&" + EmirateIDTemplate+"@10";
+				
+				attrbList += "&<Card_Name>&" + Card_ProductTemplate+"@10";
+				attrbList += "&<Card_Name_Islamic>&" + Card_ProductTemplate+"@10";
+				
+				attrbList += "&<Nationality>&" + NationalityTemplate+"@10";
+				attrbList += "&<Nationality_Islamic>&" + NationalityTemplate+"@10";
+				
+				// attribute list for murabh 
+				
+				//attrbList += "&<WI_Creation_Date>&" + WI_Creation_date+"@10";
+				attrbList += "&<WI_Creation_Date>&" + wiCreatedDate+"@10";
+				//18112022 For Date part
+				/*attrbList += "&<d1>&" + d1+"@10";
+				attrbList += "&<d2>&" + d2+"@10";
+				attrbList += "&<m1>&" + m1+"@10";
+				attrbList += "&<m2>&" + m2+"@10";
+				attrbList += "&<y1>&" + y1+"@10";
+				attrbList += "&<y2>&" + y2+"@10";
+				attrbList += "&<y3>&" + y3+"@10";
+				attrbList += "&<y4>&" + y4+"@10";*/
+				
+				//
+				attrbList += "&<Date_Floor_Limit>&" + wiCreatedDate+"@10";
+				attrbList += "&<Customer_Name_OCR>&" + CUSTOMERNAMETemplate+"@10"; 
+				
+				// if condition for getting the pob and other details  for preffered address
+				if ("Residence".equalsIgnoreCase(preferred_address)) {
+					
+					attrbList += "&<PO_Box>&" + PO_Box+"@10";
+					attrbList += "&<Address>&" + city_emirates+"@10";
+				
+				} else {
+					
+					attrbList += "&<PO_Box>&" + PO_Box_Other+"@10";
+					attrbList += "&<Address>&" + city_emirates+"@10";
+				}
+				
+				
+				// attribute for W8
+				attrbList += "&<Customer_Name_W8>&" + CUSTOMERNAMETemplate+"@10";
+				attrbList += "&<Nationality_desc_W8>&" + NationalityTemplate+"@10";
+				attrbList += "&<Date_Of_Birth_W8>&" + Date_Of_Birth+"@10";
+				attrbList += "&<Current_Date_W8>&" + CurrentDateTime+"@10";
+				attrbList += "&<Tin_Number_W8>&" + Tin_Number+"@10";
+				
+				
+				// if condition for getting the address details  for preffered address
+				if ("Residence".equalsIgnoreCase(preferred_address)) {
+					
+					attrbList += "&<Home_Country_Address_W8>&" + Address+"@10";
+					attrbList += "&<Home_country_City_W8>&" + Address2+"@10";
+					attrbList += "&<Home_Country_W8>&" + Country+"@10";
+					
+				} else {
+					
+					attrbList += "&<Home_Country_Address_W8>&" + Address_Other+"@10";
+					attrbList += "&<Home_country_City_W8>&" + Address2_other+"@10";
+					attrbList += "&<Home_Country_W8>&" + Country_Other+"@10";
+				}
+				
+				
+				// attribute for w9
+				attrbList += "&<Customer_Name_W9>&" + CUSTOMERNAMETemplate+"@10";
+				attrbList += "&<Current_Date_W9>&" + CurrentDateTime+"@10";
+				attrbList += "&<Tin_Number_W9>&" + Tin_Number+"@10";
+				
+				if ("Residence".equalsIgnoreCase(preferred_address)) {
+					
+					attrbList += "&<Address_Line1>&" + Address+"@10";
+					attrbList += "&<Address_Line2>&" + Address2+"@10";
+						
+				} else {
+					
+					attrbList += "&<Address_Line1>&" + Address_Other+"@10";
+					attrbList += "&<Address_Line2>&" + Address2_other+"@10";
+					
+				}
+				
+				try{
+					attrbList += "&<portal_ref>&" + xmlParserData.getValueOf("Prospect_id")+"@10";
+					attrbList += "&<customer_name>&" + CUSTOMERNAMETemplate+"@10";
+					Date date = new Date();
+					SimpleDateFormat mmddyyyy = new SimpleDateFormat("dd/MM/yyyy");
+					String today = mmddyyyy.format(date);
+					attrbList = attrbList+"&<date_today>&"+today.replaceAll("/", "")+"@10";
+					String amountStr =xmlParserData.getValueOf("Amount");
+					
+					if (amountStr==null || "".equalsIgnoreCase(amountStr) || "null".equalsIgnoreCase(amountStr)){
+						attrbList =attrbList+"&<amount>&"+"0@10";
+						attrbList =attrbList+"&<amount_words>&"+"ZERO@10";
+					}
+
+					else{
+						String number = xmlParserData.getValueOf("Amount");
+						double amount = Double.parseDouble(number);
+						DecimalFormat formatter = new DecimalFormat("#,###.00");
+						number = formatter.format(amount);
+						System.out.println("Converted Amount is "+number);
+						attrbList =attrbList+"&<amount>&"+number+"@10";
+						if(amountStr.contains("."))
+							amountStr=amountStr.substring(0,amountStr.indexOf("."));
+						if(!amountStr.matches("[0-9]+"))
+						{
+							DCC_DocumentGenerationLog.debug("Not a valid amount--" + amountStr);
+							attrbList =attrbList+"&<amount_words>&"+amountStr+" DIRHAMS "+"@10";
+						}
+						else
+						attrbList =attrbList+"&<amount_words>&"+numberToWord(Integer.parseInt(amountStr))+" DIRHAMS "+"@10";		
+					}
+				}
+				catch(Exception e){
+					DCC_DocumentGenerationLog.debug("Exception occured while converting amount into no" + e.getMessage());
+					System.out.println("Converted Amount is "+e.getMessage());
+				}
+				
+				DCC_DocumentGenerationLog.debug("attrbList" + attrbList);
+				DCC_DocumentGenerationLog.debug("doc list to be genrated" + pdfName);
+				String docList[] = pdfName.split("~");
+				String finalDocList="";
+				for(String tempName:docList)
+				{
+					if(!tempName.equals("")){
+						DCC_DocumentGenerationLog.debug("Temp NAme--------123456 "+tempName);
+						Output= makeSocketCall(attrbList, processInstanceID, tempName, sessionId, gtIP, gtPort, "", "", "",portal_no);
+						DCC_DocumentGenerationLog.debug("output for template "+tempName+":-" + Output);
+						if(Output==null || !Output.contains("Success~"))
+						{
+							return "Error~"+tempName;
+						}
+						else if(Output!=null && Output.contains("Success~"))
+						{
+							String str[] = Output.split("~");
+							if(str.length>1)
+							{
+								String addDocXML = str[1];
+								XMLParser xmlParseraddDocXML= new XMLParser(addDocXML);
+								String docTypeName = xmlParseraddDocXML.getValueOf("DocumentName");
+								String ISIndex = xmlParseraddDocXML.getValueOf("ISIndex");
+								if(ISIndex!=null && ISIndex.contains("#"))
+								{
+									ISIndex=ISIndex.substring(0,ISIndex.indexOf("#"));
+								}
+								if(docTypeName!=null)
+								{
+									if("".equalsIgnoreCase(finalDocList))
+										finalDocList=docTypeName;
+									else
+										finalDocList=finalDocList+"\n"+docTypeName;
+								}
+							}
+							
+						}
+					}
+					else{
+						
+					}
+					
+				}
+				String columnNames="GenratedDocumentList";
+				String columnValues="'"+finalDocList+"'";
+				String sWhereClause = "WI_NAME='" + processInstanceID + "'";
+		    	String tableName = "NG_DCC_EXTTABLE";
+		        String inputXML = CommonMethods.apUpdateInput(CommonConnection.getCabinetName(), sessionId, 
+		        		tableName, columnNames, columnValues, sWhereClause);
+		        DCC_DocumentGenerationLog.debug("Input XML for apUpdateInput for " + tableName + " Table : " + inputXML);
+		        String outputXml = CommonMethods.WFNGExecute(inputXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+		        DCC_DocumentGenerationLog.debug("Output XML for apUpdateInput for " + tableName + " Table : " + outputXml);
+		        XMLParser sXMLParserChild = new XMLParser(outputXml);
+		        String StrMainCode = sXMLParserChild.getValueOf("MainCode");
+		        //String RetStatus = null;
+		        if (StrMainCode.equals("0"))
+		        {
+		        	return "Success";
+		        }
+		        else
+		        {
+		        	DCC_DocumentGenerationLog.debug("Error in Executing apUpdateInput for genearted documents: " + outputXml);
+		        	return "Error~DocListupdate";
+		        }
+		        
+			}
+			else
+			{
+				
+				DCC_DocumentGenerationLog.debug("main code is not 0 try again :");
+				
+			}
+			
+		}
+		catch (Exception e)
+		{
+			DCC_DocumentGenerationLog.debug("Exception: "+e.getMessage());
+		}
+	return Output;
+	}
+	
+	private String numberToWord(Integer number) {
+		try{
+
+			// variable to hold string representation of number 
+			String words = "";
+			String unitsArray[] = { "zero", "one", "two", "three", "four", "five", "six", 
+					"seven", "eight", "nine", "ten", "eleven", "twelve",
+					"thirteen", "fourteen", "fifteen", "sixteen", "seventeen", 
+					"eighteen", "nineteen" };
+			String tensArray[] = { "zero", "ten", "twenty", "thirty", "forty", "fifty",
+					"sixty", "seventy", "eighty", "ninety" };
+
+			if (number == 0) {
+				return "zero";
+			}
+			// add minus before conversion if the number is less than 0
+			if (number < 0) { 
+				// convert the number to a string
+				String numberStr = "" + number; 
+				// remove minus before the number 
+				numberStr = numberStr.substring(1); 
+				// add minus before the number and convert the rest of number 
+				return "minus " + numberToWord(Integer.parseInt(numberStr)); 
+			} 
+			// check if number is divisible by 1 million
+			if ((number / 1000000) > 0) {
+				words += numberToWord(number / 1000000) + " million ";
+				number %= 1000000;
+			}
+			// check if number is divisible by 1 thousand
+			if ((number / 1000) > 0) {
+				words += numberToWord(number / 1000) + " thousand ";
+				number %= 1000;
+			}
+			// check if number is divisible by 1 hundred
+			if ((number / 100) > 0) {
+				words += numberToWord(number / 100) + " hundred ";
+				number %= 100;
+			}
+
+			if (number > 0) {
+				// check if number is within teens
+				if (number < 20) { 
+					// fetch the appropriate value from unit array
+					words += unitsArray[number];
+				} else { 
+					// fetch the appropriate value from tens array
+					words += tensArray[number / 10]; 
+					if ((number % 10) > 0) {
+						words += "-" + unitsArray[number % 10];
+					}  
+				}
+			}
+			return words.toUpperCase();
+		}
+		catch(Exception e){
+			DCC_DocumentGenerationLog.debug("Exception occured while converting amount in numberToWord method" + e.getMessage());
+			System.out.println("Converted Amount is numberToWord method "+e.getMessage());
+			return "";
+		}
+	}
+	
+
+	public String makeSocketCall(String argumentString, String wi_name, String docName, String sessionId, String gtIP,
+			int gtPort,String prequired, String pvalue,String userEmail,String portal_no) {
+		String socketParams = argumentString + "~" + wi_name + "~" + docName + "~" + sessionId+"~"+prequired+"~"+pvalue+"~"+userEmail+"~"+portal_no;
+
+		System.out.println("socketParams -- " + socketParams);
+		DCC_DocumentGenerationLog.debug("socketParams:-\n" + socketParams);
+
+		Socket template_socket = null;
+		DataOutputStream template_dout = null;
+		DataInputStream template_in = null;
+		String result = "";
+		try {
+			// Socket write code started
+			template_socket = new Socket(gtIP, gtPort);
+			DCC_DocumentGenerationLog.debug("template_socket" + template_socket);
+
+			template_dout = new DataOutputStream(template_socket.getOutputStream());
+			DCC_DocumentGenerationLog.debug("template_dout" + template_dout);
+
+			if (socketParams != null && socketParams.length() > 0) {
+				int outPut_len = socketParams.getBytes("UTF-8").length;
+				DCC_DocumentGenerationLog.debug("outPut_len" + outPut_len);
+				// CreditCard.mLogger.info("Final XML output len:
+				// "+outPut_len +
+				// "");
+				socketParams = outPut_len + "##8##;" + socketParams;
+				DCC_DocumentGenerationLog.debug("socketParams--" + socketParams);
+				// CreditCard.mLogger.info("MqInputRequest"+"Input Request
+				// Bytes : "+
+				// mqInputRequest.getBytes("UTF-16LE"));
+
+				template_dout.write(socketParams.getBytes("UTF-8"));
+				template_dout.flush();
+			} else {
+				notify();
+			}
+			// Socket write code ended and read code started
+			template_socket.setSoTimeout(60 * 1000);
+			template_in = new DataInputStream(new BufferedInputStream(template_socket.getInputStream()));
+			byte[] readBuffer = new byte[50000];
+			int num = template_in.read(readBuffer);
+			if (num > 0) {
+				byte[] arrayBytes = new byte[num];
+				System.arraycopy(readBuffer, 0, arrayBytes, 0, num);
+				result = new String(arrayBytes, "UTF-8");
+				DCC_DocumentGenerationLog.debug("result--" + result);
+			}
+		}
+
+		catch (SocketException se) {
+			se.printStackTrace();
+		} catch (IOException i) {
+			i.printStackTrace();
+		} catch (Exception io) {
+			io.printStackTrace();
+		} finally {
+			try {
+				if (template_dout != null) {
+					template_dout.close();
+					template_dout = null;
+				}
+				if (template_in != null) {
+					template_in.close();
+					template_in = null;
+				}
+				if (template_socket != null) {
+					if (!template_socket.isClosed()) {
+						template_socket.close();
+					}
+					template_socket = null;
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return result;
+	}
+}

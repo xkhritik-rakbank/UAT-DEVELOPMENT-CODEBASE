@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+	<soap:Header>
+		<ServiceId>CallProcessManager</ServiceId>
+		<ServiceType>ProductEligibility</ServiceType>
+		<ServiceProviderId>DECTECH</ServiceProviderId>
+		<ServiceChannelId>CAS</ServiceChannelId>
+		<RequestID>CASTEST</RequestID>
+		<TimeStampyyyymmddhhmmsss>2024-05-07T09:26:38.554</TimeStampyyyymmddhhmmsss>
+		<RequestLifeCycleStage>CallProcessManagerResponse</RequestLifeCycleStage>
+		<MessageStatus>Success</MessageStatus>
+	</soap:Header>
+	<soap:Body>
+		<CallProcessManagerResponse xmlns="http://tempuri.org/">
+			<CallProcessManagerResult>
+				<ProcessManagerResponse>
+					<Application>
+						<Channel>CC</Channel>
+						<CallType>PM</CallType>
+						<ApplicationNumber>DCC-0000042934-process</ApplicationNumber>
+						<ReturnDateTime>20240507092637</ReturnDateTime>
+						<SystemErrorCode></SystemErrorCode>
+						<SystemErrorMessage></SystemErrorMessage>
+						<ReturnError RecordNumber="0" />
+					</Application>
+					<Instinct_Actions>
+						<Instinct_Action_Output_XML />
+					</Instinct_Actions>
+					<PM_Results>
+						<Random_Number>990</Random_Number>
+						<DBR>0.00</DBR>
+						<Decision_Results name="MAC">
+							<PM_Decision_Results_Data>
+								<PM_Decision_Results>
+									<AppKey>DCC-0000042934-processCC</AppKey>
+									<Decision_Objective>1</Decision_Objective>
+									<Decision_Sequence_Number>1</Decision_Sequence_Number>
+									<Last_Update_Date>2024-05-07T09:26:34.06+04:00
+									</Last_Update_Date>
+									<Default_Decision>A</Default_Decision>
+									<Default_Reason>A999 - System Approve</Default_Reason>
+									<Default_Document>0</Default_Document>
+									<System_Decision>R</System_Decision>
+									<System_Document>0</System_Document>
+									<Decision_Node_Id>2.1</Decision_Node_Id>
+									<Decision_Test_Group>0</Decision_Test_Group>
+								</PM_Decision_Results>
+								..
+							</PM_Decision_Results_Data>
+							<PM_Reason_Codes_Data>
+								<PM_Reason_Codes>
+									<Decision_Objective>1</Decision_Objective>
+									<Decision_Sequence_Number>1</Decision_Sequence_Number>
+									<Sequence_Number>1</Sequence_Number>
+									<Reason_Decision>R</Reason_Decision>
+									<Reason_Code>RC170</Reason_Code>
+									<Reason_Description>High value deposit identified
+									</Reason_Description>
+									<Criteria_Name>CCSTP High value deposit identified
+									</Criteria_Name>
+									<Letter_Code />
+									<Document />
+									<Letter_Reason />
+									<Category>C - Campaign</Category>
+								</PM_Reason_Codes>
+								<PM_Reason_Codes>
+									<Decision_Objective>1</Decision_Objective>
+									<Decision_Sequence_Number>1</Decision_Sequence_Number>
+									<Sequence_Number>2</Sequence_Number>
+									<Reason_Decision>R</Reason_Decision>
+									<Reason_Code>RC171</Reason_Code>
+									<Reason_Description>Name mismatch identified between statement
+										and EFR</Reason_Description>
+									<Criteria_Name>CCSTP Name mismatch identified between statement
+										and EFR</Criteria_Name>
+									<Letter_Code />
+									<Document />
+									<Letter_Reason />
+									<Category>C - Campaign</Category>
+								</PM_Reason_Codes>
+								<PM_Reason_Codes>
+									<Decision_Objective>1</Decision_Objective>
+									<Decision_Sequence_Number>1</Decision_Sequence_Number>
+									<Sequence_Number>3</Sequence_Number>
+									<Reason_Decision>R</Reason_Decision>
+									<Reason_Code>RC172</Reason_Code>
+									<Reason_Description>Bank Statement Review is required
+									</Reason_Description>
+									<Criteria_Name>CCSTP Bank statement not available due to
+										technical issue</Criteria_Name>
+									<Letter_Code />
+									<Document />
+									<Letter_Reason />
+									<Category>C - Campaign</Category>
+								</PM_Reason_Codes>
+								..
+							</PM_Reason_Codes_Data>
+						</Decision_Results>
+						<Strategy_Results name="Eligibility">
+							<PM_Strategy_MaxLendingAmount_Data>
+								<PM_Strategy_MaxLendingAmount_Results>
+									<Policy_Number>1</Policy_Number>
+									<Adjustment_Number>0</Adjustment_Number>
+									<Max_Lending_Amount>45000.00</Max_Lending_Amount>
+									<Last_Update_Date>2024-05-07T09:26:34.333+04:00
+									</Last_Update_Date>
+									<Entry_Name>Output TAI Multiplier 4.5 Max 120000</Entry_Name>
+									<Use_Requested_Limit_Flag>false</Use_Requested_Limit_Flag>
+									<Existing_Limit_Increase_Flag>false
+									</Existing_Limit_Increase_Flag>
+									<Limit_Increase_Percent>0.00</Limit_Increase_Percent>
+									<Use_Characteristic_As_Limit_Flag>true
+									</Use_Characteristic_As_Limit_Flag>
+									<Limit_Table_Id>1</Limit_Table_Id>
+									<Limit_Field_Number>22</Limit_Field_Number>
+									<Use_Characteristic_As_Limit_Multiplier>4.500
+									</Use_Characteristic_As_Limit_Multiplier>
+									<Fixed_Amount_Flag>false</Fixed_Amount_Flag>
+									<Fixed_Amount>0</Fixed_Amount>
+									<Base_Percentage_Increase_Flag>false
+									</Base_Percentage_Increase_Flag>
+									<Base_Percentage_Increase_Percent>0.00
+									</Base_Percentage_Increase_Percent>
+									<Limit_Minimum>0</Limit_Minimum>
+									<Limit_Maximum>120000</Limit_Maximum>
+									<Limit_Rounding_Factor1>100</Limit_Rounding_Factor1>
+									<Limit_Rounding_Factor2>100</Limit_Rounding_Factor2>
+									<Limit_Rounding_Factor3>100</Limit_Rounding_Factor3>
+									<Limit_Rounding_Factor4>100</Limit_Rounding_Factor4>
+									<Limit_Rounding_Cutoff1>100000</Limit_Rounding_Cutoff1>
+									<Limit_Rounding_Cutoff2>200000</Limit_Rounding_Cutoff2>
+									<Limit_Rounding_Cutoff3>300000</Limit_Rounding_Cutoff3>
+									<Limit_Reason_Code />
+									<Max_Limit_Table_Id>0</Max_Limit_Table_Id>
+									<Max_Limit_Field_Number>0</Max_Limit_Field_Number>
+									<Max_Limit_Multiplier>0.00</Max_Limit_Multiplier>
+									<Use_Round_Up_Factor1_Flag>false</Use_Round_Up_Factor1_Flag>
+									<Use_Round_Up_Factor2_Flag>false</Use_Round_Up_Factor2_Flag>
+									<Use_Round_Up_Factor3_Flag>false</Use_Round_Up_Factor3_Flag>
+									<Use_Round_Up_Factor4_Flag>false</Use_Round_Up_Factor4_Flag>
+									<Strategy_Node_Id>1.2.2.2.2.5.3.3</Strategy_Node_Id>
+									<Strategy_Test_Group>0</Strategy_Test_Group>
+									<Tree_Error_Field_Label />
+									<Tree_Error_Field_Value />
+								</PM_Strategy_MaxLendingAmount_Results>
+								..
+							</PM_Strategy_MaxLendingAmount_Data>
+						</Strategy_Results>
+						<Strategy_Results name="Interest Rate">
+							<PM_Strategy_PricingTerm_Data>
+								<PM_Strategy_PricingTerm_Results>
+									<Last_Update_Date>2024-05-07T09:26:34.38+04:00
+									</Last_Update_Date>
+									<Entry_Name>Zero</Entry_Name>
+									<Interest_Rate>0.00</Interest_Rate>
+									<Max_Loan_Term>0</Max_Loan_Term>
+									<Strategy_Node_Id>2</Strategy_Node_Id>
+									<Strategy_Test_Group>0</Strategy_Test_Group>
+								</PM_Strategy_PricingTerm_Results>
+								..
+							</PM_Strategy_PricingTerm_Data>
+						</Strategy_Results>
+						<Scoring_Results name="Recalculation">
+							<PM_Scoring_Results_Data>
+								<PM_Scoring_Results>
+									<Scoring_Sequence_Number>1</Scoring_Sequence_Number>
+									<Scoring_Objective>2</Scoring_Objective>
+									<Last_Update_Date>2024-05-07T09:26:34.42+04:00
+									</Last_Update_Date>
+									<Score>0.000000</Score>
+									<Score_Node_Id>1</Score_Node_Id>
+									<Scorecard_Id>Null Scorecard</Scorecard_Id>
+									<Grade>0</Grade>
+									<Score_Test_Group>0</Score_Test_Group>
+								</PM_Scoring_Results>
+								..
+							</PM_Scoring_Results_Data>
+						</Scoring_Results>
+						<Scoring_Results name="Application Score">
+							<PM_Scoring_Results_Data>
+								<PM_Scoring_Results>
+									<Scoring_Sequence_Number>1</Scoring_Sequence_Number>
+									<Scoring_Objective>1</Scoring_Objective>
+									<Last_Update_Date>2024-05-07T09:26:35.633+04:00
+									</Last_Update_Date>
+									<Score>597.000000</Score>
+									<Score_Node_Id>2.1.1</Score_Node_Id>
+									<Scorecard_Id>Scorecard Credit History GE 12 Months
+									</Scorecard_Id>
+									<Grade>0</Grade>
+									<Score_Test_Group>0</Score_Test_Group>
+								</PM_Scoring_Results>
+								..
+							</PM_Scoring_Results_Data>
+						</Scoring_Results>
+						<Decision_Results name="Eligibility Decision">
+							<PM_Decision_Results_Data>
+								<PM_Decision_Results>
+									<AppKey>DCC-0000042934-processCC</AppKey>
+									<Decision_Objective>2</Decision_Objective>
+									<Decision_Sequence_Number>1</Decision_Sequence_Number>
+									<Last_Update_Date>2024-05-07T09:26:36.907+04:00
+									</Last_Update_Date>
+									<Default_Decision>A</Default_Decision>
+									<Default_Reason>A999 - System Approve</Default_Reason>
+									<Default_Document>0</Default_Document>
+									<System_Decision>A</System_Decision>
+									<System_Document>0</System_Document>
+									<Decision_Node_Id>2.1</Decision_Node_Id>
+									<Decision_Test_Group>0</Decision_Test_Group>
+								</PM_Decision_Results>
+								..
+							</PM_Decision_Results_Data>
+							<PM_Reason_Codes_Data>
+								<PM_Reason_Codes>
+									<Decision_Objective>2</Decision_Objective>
+									<Decision_Sequence_Number>1</Decision_Sequence_Number>
+									<Sequence_Number>1</Sequence_Number>
+									<Reason_Decision>A</Reason_Decision>
+									<Reason_Code>A999</Reason_Code>
+									<Reason_Description>System Approve</Reason_Description>
+									<Criteria_Name />
+									<Letter_Code />
+									<Document />
+									<Letter_Reason />
+								</PM_Reason_Codes>
+								..
+							</PM_Reason_Codes_Data>
+						</Decision_Results>
+						<Strategy_Results name="Additional Eligible Cards">
+							<PM_Strategy_Verification_Data>
+								<PM_Strategy_Verification_Results>
+									<Last_Update_Date>2024-05-07T09:26:37+04:00</Last_Update_Date>
+									<Entry_Name>STP Eligible Cards_Both 10K20K</Entry_Name>
+									<Number_Of_Visits>0</Number_Of_Visits>
+									<Visits>
+										<Code>203</Code>
+										<Type_Of_Visit>Platinum High Flyer -Conventional
+										</Type_Of_Visit>
+										<Mandatory_Flag>False</Mandatory_Flag>
+									</Visits>
+									<Visits>
+										<Code>204</Code>
+										<Type_Of_Visit>Titanium Card -Conventional</Type_Of_Visit>
+										<Mandatory_Flag>False</Mandatory_Flag>
+									</Visits>
+									<Visits>
+										<Code>205</Code>
+										<Type_Of_Visit>Red card -Conventional</Type_Of_Visit>
+										<Mandatory_Flag>False</Mandatory_Flag>
+									</Visits>
+									<Visits>
+										<Code>208</Code>
+										<Type_Of_Visit>Murabaha Platinum -Islamic</Type_Of_Visit>
+										<Mandatory_Flag>False</Mandatory_Flag>
+									</Visits>
+									<Number_Of_Calls>0</Number_Of_Calls>
+									<Calls>
+										<Code></Code>
+										<Type_Of_Call></Type_Of_Call>
+										<Mandatory_Flag></Mandatory_Flag>
+									</Calls>
+									<Strategy_Node_Id>2.1.2.3.2.3.5</Strategy_Node_Id>
+									<Strategy_Test_Group>0</Strategy_Test_Group>
+								</PM_Strategy_Verification_Results>
+								..
+							</PM_Strategy_Verification_Data>
+						</Strategy_Results>
+					</PM_Results>
+					<PM_Outputs>
+						<Application>
+							<Is_Banking_Customer>N</Is_Banking_Customer>
+							<Is_New_Score_Card>YES</Is_New_Score_Card>
+							<Is_Refer_Designation>N</Is_Refer_Designation>
+							<Output_Accommodation_Allowance>0.00
+							</Output_Accommodation_Allowance>
+							<Output_Additional_Amount>29100.00</Output_Additional_Amount>
+							<Output_AECB_Salary_1>0.00</Output_AECB_Salary_1>
+							<Output_AECB_Salary_2>0.00</Output_AECB_Salary_2>
+							<Output_AECB_Salary_3>0.00</Output_AECB_Salary_3>
+							<Output_AECB_Salary_Eligible>N</Output_AECB_Salary_Eligible>
+							<Output_Affordable_EMI>1240.00</Output_Affordable_EMI>
+							<Output_Affordable_Ratio>53.97</Output_Affordable_Ratio>
+							<Output_Age>31.07.6</Output_Age>
+							<Output_Alternate_Card>N</Output_Alternate_Card>
+							<Output_AVG_EMI_Client>0.00</Output_AVG_EMI_Client>
+							<Output_AVG_EMI_Policy>0.00</Output_AVG_EMI_Policy>
+							<Output_BBG_Existing_DBR>0.00</Output_BBG_Existing_DBR>
+							<Output_BBG_Final_DBR>0.00</Output_BBG_Final_DBR>
+							<Output_CFF_Client>0.00</Output_CFF_Client>
+							<Output_CFF_Policy>0.00</Output_CFF_Policy>
+							<Output_CPV_Waiver>N</Output_CPV_Waiver>
+							<Output_Decision>R</Output_Decision>
+							<Output_Delegation_Authority>CA</Output_Delegation_Authority>
+							<Output_Eligible_Amount>29100.00</Output_Eligible_Amount>
+							<Output_Eligible_Amount_Path>Max Lending Amount Sub Process Type
+								Segmentation CC [SAL]\NOT CC Minimum AECB Score requirement not
+								met\NOT UAE National Test program\NOT Employee type SP or not
+								confirmed in job with LOS LT 6\NOT CC No hit Score\Max Lending
+								Amount Target Segment Code [Others]\Output TAI Segmentation
+								[10000 - 24999.99]\CC AECB SCORE [SCORE &gt;=700]
+							</Output_Eligible_Amount_Path>
+							<Output_Eligible_Cards>[{"Card_Product":"Platinum High Flyer
+								-Conventional","Credit_Limit":29100.00,"Flag":"N"},{"Card_Product":"Red
+								card
+								-Conventional","Credit_Limit":29100.00,"Flag":"N"},{"Card_Product":"Murabaha
+								Platinum -Islamic","Credit_Limit":0.00,"Flag":"N"}]
+							</Output_Eligible_Cards>
+							<Output_Eligible_Multiple>0.000</Output_Eligible_Multiple>
+							<Output_Existing_DBR>37.60</Output_Existing_DBR>
+							<Output_Final_Amount>29100.00</Output_Final_Amount>
+							<Output_Final_DBR>49.24</Output_Final_DBR>
+							<Output_Interest_Rate>0.00</Output_Interest_Rate>
+							<Output_Loan_Client>0.00</Output_Loan_Client>
+							<Output_Loan_Eligibility>0.00</Output_Loan_Eligibility>
+							<Output_Loan_Policy>0.00</Output_Loan_Policy>
+							<Output_Net_Salary_DBR>49.24</Output_Net_Salary_DBR>
+							<Output_NoOf_AECBHistory>24</Output_NoOf_AECBHistory>
+							<Output_NoOfCheqes>10</Output_NoOfCheqes>
+							<Output_NSTP>Y</Output_NSTP>
+							<Output_NSTP_Reason>[{"Reasons":"High value deposit
+								identified"},{"Reasons":"Name mismatch identified between
+								statement and EFR"},{"Reasons":"Bank Statement Review is
+								required"}]</Output_NSTP_Reason>
+							<Output_NTC_Amount>0.00</Output_NTC_Amount>
+							<Output_Num_Eligible_Cards>9</Output_Num_Eligible_Cards>
+							<Output_Refer_Queue>N</Output_Refer_Queue>
+							<Output_Salary_Multiples>2.91</Output_Salary_Multiples>
+							<Output_Stress_BufferAmt>72.75</Output_Stress_BufferAmt>
+							<Output_Stress_DBR>49.97</Output_Stress_DBR>
+							<Output_TAI>10000.00</Output_TAI>
+							<Output_TotalDeduction>4924.00</Output_TotalDeduction>
+						</Application>
+					</PM_Outputs>
+				</ProcessManagerResponse>
+			</CallProcessManagerResult>
+		</CallProcessManagerResponse>
+	</soap:Body>
+</soap:Envelope>
+

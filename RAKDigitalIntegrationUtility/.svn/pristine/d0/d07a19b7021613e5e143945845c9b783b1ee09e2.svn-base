@@ -1,0 +1,19 @@
+		<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+			<soap:Header>                                                                                                                
+				<ServiceId>CallProcessManager</ServiceId>                                                                                
+				<ServiceType>ProductEligibility</ServiceType>                                                                            
+				<ServiceProviderId>DECTECH</ServiceProviderId>                                                                           
+				<ServiceChannelId>CAS</ServiceChannelId>                                                                                 
+				<RequestID>CASTEST</RequestID>                                                                                           
+				<TimeStampyyyymmddhhmmsss>str_TimeStampyyyymmddhhmmsss</TimeStampyyyymmddhhmmsss>                                             
+				<RequestLifeCycleStage>CallProcessManagerRequest</RequestLifeCycleStage>                                                 
+				<MessageStatus>Success</MessageStatus>                                                                                   
+			</soap:Header>                                                                                                               
+			<soap:Body>                                                                                                                  
+				<CallProcessManager xmlns="http://tempuri.org/">                                                                         
+					<applicationXML>
+					<![CDATA[<ProcessManagerRequest><Application><Channel>CC</Channel><CallType>PM</CallType><ApplicationNumber>Str_ApplicationNumber</ApplicationNumber><Request_From>IBPS</Request_From></Application><ApplicationDetails><full_eligibility_availed>Str_full_eligibility_availed</full_eligibility_availed><product_type>Str_product_type</product_type><app_category>Str_app_category</app_category><requested_product>Str_requested_product</requested_product><requested_limit>Str_requested_limit</requested_limit><sub_product>Str_sub_product</sub_product><requested_card_product>Str_requested_card_product</requested_card_product><application_type>NEWE</application_type><interest_rate>Str_interest_rate</interest_rate><customer_type>Str_customer_type</customer_type><final_limit>Str_final_limit</final_limit><emi>Str_emi</emi><manual_deviation>Str_manual_deviation</manual_deviation><application_date>Str_application_date</application_date></ApplicationDetails><String_ApplicantDetails><String_InternalBureauData><ExternalBureauData><String_ExternalBureau><String_BouncedCheques><String_Utilization24months><String_History_24months><String_CourtCase><String_ExternalBureauIndividualProducts><String_ExternalBureauPipelineProducts></ExternalBureauData><String_Perfios></ProcessManagerRequest>]]>
+					</applicationXML>                                                                        
+				</CallProcessManager>                                                                                                    
+			</soap:Body>                                                                                                                 
+		</soap:Envelope>

@@ -1,0 +1,786 @@
+/*
+---------------------------------------------------------------------------------------------------------
+                  NEWGEN SOFTWARE TECHNOLOGIES LIMITED
+
+Group                   : Application - Projects
+Project/Product			: RAK BPM
+Application				: RAK BPM Utility
+Module					: RAOP Status
+File Name				: RAOPStatus.java
+Author 					: Ravindra Kumar	
+Date (DD/MM/YYYY)		: 01/06/2022
+
+---------------------------------------------------------------------------------------------------------
+                 	CHANGE HISTORY
+---------------------------------------------------------------------------------------------------------
+
+Problem No/CR No        Change Date           Changed By             Change Description
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+*/
+
+
+package com.newgen.DCC.Notify;
+
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.net.Socket;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.NGXmlList;
+import com.newgen.omni.jts.cmgr.XMLParser;;
+
+
+public class DCC_Notify_App implements Runnable
+{
+	static Map<String, String> NotifyAppConfigParamMap= new HashMap<String, String>();
+
+	int socketConnectionTimeout=0;
+	int integrationWaitTime=0;
+	int sleepIntervalInMin=0;
+	private static String cabinetName = null;
+	private static String jtsIP = null;
+	private static String jtsPort = null;
+	private static String queueID = null;
+	@Override
+	public void run()
+	{
+		String sessionID = "";
+		
+		
+
+		try
+		{
+			DCCNotifyLog.setLogger();
+
+			DCCNotifyLog.DCCNotifyLogger.debug("Connecting to Cabinet.");
+
+			int configReadStatus = readConfig();
+
+			DCCNotifyLog.DCCNotifyLogger.debug("configReadStatus "+configReadStatus);
+			if(configReadStatus !=0)
+			{
+				DCCNotifyLog.DCCNotifyLogger.error("Could not Read Config Properties [DCCNotifyAPP]");
+				return;
+			}
+
+			cabinetName = CommonConnection.getCabinetName();
+			DCCNotifyLog.DCCNotifyLogger.debug("Cabinet Name: " + cabinetName);
+
+			jtsIP = CommonConnection.getJTSIP();
+			DCCNotifyLog.DCCNotifyLogger.debug("JTSIP: " + jtsIP);
+
+			jtsPort = CommonConnection.getJTSPort();
+			DCCNotifyLog.DCCNotifyLogger.debug("JTSPORT: " + jtsPort);
+
+			queueID = NotifyAppConfigParamMap.get("queueID");
+			DCCNotifyLog.DCCNotifyLogger.debug("QueueID: " + queueID);
+
+			socketConnectionTimeout=Integer.parseInt(NotifyAppConfigParamMap.get("MQ_SOCKET_CONNECTION_TIMEOUT"));
+			DCCNotifyLog.DCCNotifyLogger.debug("SocketConnectionTimeOut: "+socketConnectionTimeout);
+
+			integrationWaitTime=Integer.parseInt(NotifyAppConfigParamMap.get("INTEGRATION_WAIT_TIME"));
+			DCCNotifyLog.DCCNotifyLogger.debug("IntegrationWaitTime: "+integrationWaitTime);
+
+			sleepIntervalInMin=Integer.parseInt(NotifyAppConfigParamMap.get("SleepIntervalInMin"));
+			DCCNotifyLog.DCCNotifyLogger.debug("SleepIntervalInMin: "+sleepIntervalInMin);
+
+
+			sessionID = CommonConnection.getSessionID(DCCNotifyLog.DCCNotifyLogger, false);
+
+			if(sessionID.trim().equalsIgnoreCase(""))
+			{
+				DCCNotifyLog.DCCNotifyLogger.debug("Could Not Connect to Server!");
+			}
+			else
+			{
+				DCCNotifyLog.DCCNotifyLogger.debug("Session ID found: " + sessionID);
+				HashMap<String, String> socketDetailsMap = CommonMethods.socketConnectionDetails(cabinetName, jtsIP, jtsPort, sessionID);
+				while (true) {
+					DCCNotifyLog.setLogger();
+					DCCNotifyLog.DCCNotifyLogger.debug("DCC Notify TO DEH ...123.");
+					DCC_NotifyAppUtility(cabinetName, jtsIP, jtsPort, sessionID, queueID, socketConnectionTimeout, integrationWaitTime, socketDetailsMap);
+					System.out.println("No More workitems to Process, Sleeping!");
+					Thread.sleep(sleepIntervalInMin * 60 * 1000);
+				}
+			}
+		}
+
+		catch(Exception e)
+		{
+			e.printStackTrace();
+			DCCNotifyLog.DCCNotifyLogger.error("Exception Occurred in DCCNotifyAPP : "+e);
+			final Writer result = new StringWriter();
+			final PrintWriter printWriter = new PrintWriter(result);
+			e.printStackTrace(printWriter);
+			DCCNotifyLog.DCCNotifyLogger.error("Exception Occurred in DCCNotifyAPP : "+result);
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void DCC_NotifyAppUtility(String cabinetName, String sJtsIp, String iJtsPort, String sessionId, String queueID, 
+			int socketConnectionTimeOut, int integrationWaitTime, HashMap<String, String> socketDetailsMap)
+	{
+		final String ws_name="Sys_DEH_Notify";
+		
+		try
+		{
+			final HashMap<String, String> CheckGridDataMap = new HashMap<String, String>();
+			//Validate Session ID
+			sessionId  = CommonConnection.getSessionID(DCCNotifyLog.DCCNotifyLogger, false);
+
+			if (sessionId == null || sessionId.equalsIgnoreCase("") || sessionId.equalsIgnoreCase("null"))
+			{
+				DCCNotifyLog.DCCNotifyLogger.error("Could Not Get Session ID "+sessionId);
+				return;
+			}
+
+			//Fetch all Work-Items on given queueID.
+			DCCNotifyLog.DCCNotifyLogger.debug("Fetching all Workitems on DCCNotifyAPP queue");
+			System.out.println("Fetching all Workitems on CIF_Update_Initial queue");
+			String fetchWorkitemListInputXML=CommonMethods.fetchWorkItemsInput(cabinetName, sessionId, queueID);
+			DCCNotifyLog.DCCNotifyLogger.debug("InputXML for fetchWorkList Call: "+fetchWorkitemListInputXML);
+
+			String fetchWorkitemListOutputXML= CommonMethods.WFNGExecute(fetchWorkitemListInputXML,sJtsIp,iJtsPort,1);
+
+			DCCNotifyLog.DCCNotifyLogger.debug("WMFetchWorkList DCCNotifyAPP OutputXML: "+fetchWorkitemListOutputXML);
+
+			XMLParser xmlParserFetchWorkItemlist = new XMLParser(fetchWorkitemListOutputXML);
+
+			String fetchWorkItemListMainCode = xmlParserFetchWorkItemlist.getValueOf("MainCode");
+			DCCNotifyLog.DCCNotifyLogger.debug("FetchWorkItemListMainCode: "+fetchWorkItemListMainCode);
+
+			int fetchWorkitemListCount = Integer.parseInt(xmlParserFetchWorkItemlist.getValueOf("RetrievedCount"));
+			DCCNotifyLog.DCCNotifyLogger.debug("RetrievedCount for WMFetchWorkList Call: "+fetchWorkitemListCount);
+
+			DCCNotifyLog.DCCNotifyLogger.debug("Number of workitems retrieved on DCCNotifyAPP: "+fetchWorkitemListCount);
+
+			System.out.println("Number of workitems retrieved on DCCNotifyAPP: "+fetchWorkitemListCount);
+
+			if (fetchWorkItemListMainCode.trim().equals("0") && fetchWorkitemListCount > 0)
+			{
+				for(int i=0; i<fetchWorkitemListCount; i++)
+				{
+					String fetchWorkItemlistData=xmlParserFetchWorkItemlist.getNextValueOf("Instrument");
+					fetchWorkItemlistData =fetchWorkItemlistData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+					DCCNotifyLog.DCCNotifyLogger.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: "+fetchWorkItemlistData);
+					XMLParser xmlParserfetchWorkItemData = new XMLParser(fetchWorkItemlistData);
+
+					String processInstanceID=xmlParserfetchWorkItemData.getValueOf("ProcessInstanceId");
+					DCCNotifyLog.DCCNotifyLogger.debug("Current ProcessInstanceID: "+processInstanceID);
+
+					DCCNotifyLog.DCCNotifyLogger.debug("Processing Workitem: "+processInstanceID);
+					System.out.println("\nProcessing Workitem: "+processInstanceID);
+
+					String WorkItemID=xmlParserfetchWorkItemData.getValueOf("WorkItemId");
+					DCCNotifyLog.DCCNotifyLogger.debug("Current WorkItemID: "+WorkItemID);
+
+					String entryDateTime=xmlParserfetchWorkItemData.getValueOf("EntryDateTime");
+					DCCNotifyLog.DCCNotifyLogger.debug("Current EntryDateTime: "+entryDateTime);
+
+					String ActivityName=xmlParserfetchWorkItemData.getValueOf("ActivityName");
+					DCCNotifyLog.DCCNotifyLogger.debug("ActivityName: "+ActivityName);
+					
+					String ActivityID = xmlParserfetchWorkItemData.getValueOf("WorkStageId");
+					DCCNotifyLog.DCCNotifyLogger.debug("ActivityID: "+ActivityID);
+					String ActivityType = xmlParserfetchWorkItemData.getValueOf("ActivityType");
+					DCCNotifyLog.DCCNotifyLogger.debug("ActivityType: "+ActivityType);
+					String ProcessDefId = xmlParserfetchWorkItemData.getValueOf("RouteId");
+					DCCNotifyLog.DCCNotifyLogger.debug("ProcessDefId: "+ProcessDefId);
+					
+					//RAOP Integration Call
+					String decisionValue="";
+					String Notify_app_input_xml="";
+					//String MainStatusFlag = "Success";
+					// Write query to get the fields desired for the integration
+				    String DBQuery ="select  ADDITIONAL_DOCUMENT_REQUIRED,prospect_id,NOTIFY_DEH_IDENTIFIER from NG_DCC_EXTTABLE with(nolock) where WI_name='" + processInstanceID + "'";
+				    // select method (product written) used to get the data in form of xml.
+				    String extTabDataIPXML =CommonMethods.apSelectWithColumnNames(DBQuery, cabinetName, CommonConnection.getSessionID(DCCNotifyLog.DCCNotifyLogger, false));
+				    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+				    String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+				    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+				    // using xml parser to pass the output data in desired format 
+				    XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+				    // total values retrieved > 0 is a check
+				    int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+				    // Main code we get if the ap select call is triggered success.
+				    if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec > 0)
+			        {
+				    	String NOTIFY_DEH_IDENTIFIER=xmlParserData.getValueOf("NOTIFY_DEH_IDENTIFIER");
+				    	String prospect_id=xmlParserData.getValueOf("prospect_id");
+				    	String ADDITIONAL_DOCUMENT_REQUIRED=xmlParserData.getValueOf("ADDITIONAL_DOCUMENT_REQUIRED");
+				    	
+				    	if(NOTIFY_DEH_IDENTIFIER!=null && !"".equalsIgnoreCase(NOTIFY_DEH_IDENTIFIER))
+				    	{
+				    		if("FIRCO".equalsIgnoreCase(NOTIFY_DEH_IDENTIFIER))
+				    		{
+					    			
+				    				String query = "select Top 1 decision_date_time from NG_DCC_GR_DECISION_HISTORY with(nolock) where workstep='Firco' and wi_name = '" + processInstanceID + "' order by decision_date_time desc";
+				    				String ActdateIPXML =CommonMethods.apSelectWithColumnNames(query, cabinetName, CommonConnection.getSessionID(DCCNotifyLog.DCCNotifyLogger, false));
+								    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataIPXML: " + ActdateIPXML);
+								    String ActdateOPXML = CommonMethods.WFNGExecute(ActdateIPXML,jtsIP, jtsPort, 1);
+								    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataOPXML: " + ActdateOPXML);
+								    // using xml parser to pass the output data in desired format 
+								    XMLParser xmlParserActData = new XMLParser(ActdateOPXML);
+								    // total values retrieved > 0 is a check
+								    int iTotalrecAct = Integer.parseInt(xmlParserActData.getValueOf("TotalRetrieved"));
+								    if (xmlParserActData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrecAct > 0)
+							        {
+								    	String actionDateTime=xmlParserActData.getValueOf("decision_date_time");
+								    	String additioal_docs_details = "";
+								    	if(actionDateTime!=null && !"".equalsIgnoreCase(actionDateTime))
+								    	{
+								    		// documents for notify_app - AdditionalDocumentDetails
+										    if (ADDITIONAL_DOCUMENT_REQUIRED != null && "Y".equalsIgnoreCase(ADDITIONAL_DOCUMENT_REQUIRED)) 
+										    {
+										    	// document status SHOULD BE PPENDING
+									            String DBQuery_doc ="select document_name,document_month, document_year,document_remarks from NG_DCC_GR_ADDITIONAL_DOCUMENT with(nolock) where WI_name = '" + processInstanceID + "'";
+									            
+									            String docDataIPXML =CommonMethods.apSelectWithColumnNames(DBQuery_doc, cabinetName, CommonConnection.getSessionID(DCCNotifyLog.DCCNotifyLogger, false));
+									    	    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataIPXML: " + docDataIPXML);
+									    	    String docDataOPXML = CommonMethods.WFNGExecute(docDataIPXML, jtsIP, jtsPort, 1);
+									    	    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataOPXML: " + docDataOPXML);
+									            
+									    	    XMLParser xmlParserDocData = new XMLParser(docDataOPXML);
+									            
+									    	    int iTotalrec1 = Integer.parseInt(xmlParserDocData.getValueOf("TotalRetrieved"));
+									    	    
+									    	    if (xmlParserDocData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec1 > 0)
+									            {
+													for (int j = 0; j < iTotalrec1; j++)
+													{
+														String fetchlistData=xmlParserDocData.getNextValueOf("Record");
+														fetchlistData =fetchlistData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+							
+														DCCNotifyLog.DCCNotifyLogger.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: "+fetchWorkItemlistData);
+														XMLParser xmlParserfetchData = new XMLParser(fetchlistData);
+														
+														additioal_docs_details += "\n\t\t" +"<DocNameList>"+ "\n" +
+																"\t\t\t" +"<DocumentName>"+xmlParserfetchData.getValueOf("document_name")+"</DocumentName>"+ "\n" +
+																"\t\t\t" +"<MonthYear>"+xmlParserfetchData.getValueOf("document_status")+"</MonthYear>"+ "\n" +
+																"\t\t" +"</DocNameList>";
+													}
+									            }
+									    	    
+										    }
+										    
+										    String fileLocation=new StringBuffer().append(System.getProperty("user.dir")).append(System.getProperty("file.separator")).append("DCC_Integration")
+							    		    		.append(System.getProperty("file.separator")).append("FIRCO_DOCS_REQD.txt").toString();
+										    BufferedReader sbf=new BufferedReader(new FileReader(fileLocation));
+								    		
+								    		StringBuilder sb=new StringBuilder();
+								    		String line=sbf.readLine();
+								    		while(line!=null)
+								    		{
+								    			sb.append(line);
+								    			sb.append(System.lineSeparator());
+								    			line=sbf.readLine();
+								    		}
+								    		
+								    		Notify_app_input_xml=sb.toString();
+								    		
+								    		Notify_app_input_xml=Notify_app_input_xml.replace("#WI_NAME#", processInstanceID);
+								    		Notify_app_input_xml=Notify_app_input_xml.replace("#PROSPECTID#", prospect_id);
+								    		Notify_app_input_xml=Notify_app_input_xml.replace("#DOCREQUIRED#", ADDITIONAL_DOCUMENT_REQUIRED);
+								    		Notify_app_input_xml=Notify_app_input_xml.replace("#DOCUMENTLIST#", additioal_docs_details);
+								    		Notify_app_input_xml=Notify_app_input_xml.replace("#ACTIONEDDATE#", actionDateTime);
+								    		
+								    	}
+								    	
+									    
+							        }
+								    
+				    			
+				    		}
+				    	}
+				    	/*String xmlDataExtTab = xmlParserData.getNextValueOf("Record");
+			            xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+			            // replace the spcl char above.
+			            NGXmlList objWorkList = xmlParserData.createList("Records", "Record");
+			            
+			            // loop over the map to put value key pair.
+			            for (; objWorkList.hasMoreElements(true); objWorkList.skip(true))
+			            {
+			            	CheckGridDataMap.put("Workitem_Number", objWorkList.getVal("Workitem_Number"));
+			            	CheckGridDataMap.put("AddnalDocs_Reqd", objWorkList.getVal("AddnalDocsReqd"));
+			            	CheckGridDataMap.put("prospect_id", objWorkList.getVal("prospect_id"));
+			            }*/
+			        }
+				    
+				    /*String additioal_docs_details = "";
+				    String additioal_docs_req_status = "False";
+		            // documents for notify_app - AdditionalDocumentDetails
+				    if (CheckGridDataMap.get("AddnalDocs_Reqd") != null && CheckGridDataMap.get("AddnalDocs_Reqd").equalsIgnoreCase("Y")) {
+				    	// document status SHOULD BE PPENDING
+			            String DBQuery_doc ="select document_name,document_month, document_year,document_remarks from NG_DCC_GR_ADDITIONAL_DOCUMENT with(nolock) where WI_name = '" + processInstanceID + "'";
+			            
+			            String extTabDataIPXML1 =CommonMethods.apSelectWithColumnNames(DBQuery_doc, CommonConnection.getCabinetName(), CommonConnection.getSessionID(DCCNotifyLog.DCCNotifyLogger, false));
+			    	    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataIPXML: " + extTabDataIPXML1);
+			    	    String extTabDataOPXML1 = CommonMethods.WFNGExecute(extTabDataIPXML1, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+			    	    DCCNotifyLog.DCCNotifyLogger.debug("extTabDataOPXML: " + extTabDataOPXML1);
+			            
+			    	    XMLParser xmlParserData1 = new XMLParser(extTabDataOPXML1);
+			            
+			    	    int iTotalrec1 = Integer.parseInt(xmlParserData1.getValueOf("TotalRetrieved"));
+			    	    if (xmlParserData1.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec1 > 0)
+			            {
+							for (int j = 0; j < iTotalrec1; j++)
+							{
+								String fetchlistData=xmlParserData1.getNextValueOf("Record");
+								fetchlistData =fetchlistData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+	
+								DCCNotifyLog.DCCNotifyLogger.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: "+fetchWorkItemlistData);
+								XMLParser xmlParserfetchData = new XMLParser(fetchlistData);
+								
+								additioal_docs_details += "\n\t\t" +"<AdditionalDocumentDetails>"+ "\n" +
+										"\t\t\t" +"<DocumentName>"+xmlParserfetchData.getValueOf("document_name")+"</DocumentName>"+ "\n" +
+										"\t\t\t" +"<DocumentStatus>"+xmlParserfetchData.getValueOf("document_status")+"</DocumentStatus>"+ "\n" +
+										"\t\t\t" +"<DocumentRemarks>"+xmlParserfetchData.getValueOf("document_remarks")+"</DocumentRemarks>"+"\n" +
+										"\t\t\t" +"<FreeField1>"+xmlParserfetchData.getValueOf("document_month")+"</FreeField1>"+"\n" +
+										"\t\t\t" +"<FreeField2>"+xmlParserfetchData.getValueOf("document_year")+"</FreeField2>"+"\n" +
+										"\t\t" +"</AdditionalDocumentDetails>";
+							}
+			            }
+			    	    
+			    	    additioal_docs_req_status="true";
+				    }*/
+				    
+		           /* //Reading a txt file from folder
+		            String fileLocation=new StringBuffer().append(System.getProperty("user.dir")).append(System.getProperty("file.separator")).append("DCC_Integration")
+		    		.append(System.getProperty("file.separator")).append("Notify_appliation.txt").toString();
+		            
+		            BufferedReader sbf=new BufferedReader(new FileReader(fileLocation));
+		    		
+		    		StringBuilder sb=new StringBuilder();
+		    		String line=sbf.readLine();
+		    		while(line!=null)
+		    		{
+		    			sb.append(line);
+		    			sb.append(System.lineSeparator());
+		    			line=sbf.readLine();
+		    		}
+		    		
+		    		String Notify_app_input_xml = sb.toString().replace(">Workitem_Number<",">"+CheckGridDataMap.get("Workitem_Number").trim()+"<")
+				    		.replace(">prospect_id<",">"+CheckGridDataMap.get("prospect_id").trim()+"<")
+				    		//.replace(">WorkItem_Status<",">"+CheckGridDataMap.get("deh_Workitem_status")+"<");
+				    		.replace(">WorkItem_Status<",">APP<");
+		    		if(CheckGridDataMap.get("AddnalDocs_Reqd").trim().equalsIgnoreCase("Y"))
+		    		{
+		    			// Documents section (AdditionalDocumentDetails)
+		    			Notify_app_input_xml=Notify_app_input_xml.replace(">AddnalDocs_Reqd<",">true<");
+		    		}else 
+		    		{
+		    			Notify_app_input_xml=Notify_app_input_xml.replace(">AddnalDocs_Reqd<",">false<");
+		    		}
+		    		
+	    			Notify_app_input_xml=Notify_app_input_xml.replace("Additional_Document_Details",additioal_docs_details);
+		    		
+	    			Notify_app_input_xml=Notify_app_input_xml.replace(">AddnalDocs_Reqd<",">"+additioal_docs_req_status+"<");*/
+		    		
+		    		DCCNotifyLog.DCCNotifyLogger.debug("Notify_appliation: " + Notify_app_input_xml);
+						
+					String integrationStatus="Success";
+					String attributesTag;
+					String ErrDesc = "";
+					StringBuilder finalString=new StringBuilder();
+					finalString = finalString.append(Notify_app_input_xml);
+					//changes need to done to updae the correct flag
+					//HashMap<String, String> socketConnectionMap =socketConnectionDetails(cabinetName, sJtsIp, iJtsPort, sessionId); 
+					
+					integrationStatus = socketConnection(cabinetName, CommonConnection.getUsername(), sessionId, sJtsIp, iJtsPort, processInstanceID, ws_name, 60, 65,socketDetailsMap, finalString);
+					
+					XMLParser xmlParserSocketDetails= new XMLParser(integrationStatus);
+					DCCNotifyLog.DCCNotifyLogger.debug(" xmlParserSocketDetails : "+xmlParserSocketDetails);
+				    String return_code = xmlParserSocketDetails.getValueOf("ReturnCode");
+				    DCCNotifyLog.DCCNotifyLogger.debug("Return Code: "+return_code+ "WI: "+processInstanceID);
+				    String return_desc = xmlParserSocketDetails.getValueOf("ReturnDesc");
+				    DCCNotifyLog.DCCNotifyLogger.debug("return_desc : "+return_desc+ "WI: "+processInstanceID);
+					
+				    String MsgId ="";
+				    if (integrationStatus.contains("<MessageId>"))
+						MsgId = xmlParserSocketDetails.getValueOf("MessageId");
+					
+				    DCCNotifyLog.DCCNotifyLogger.debug("MsgId : "+MsgId+" for WI: "+processInstanceID);
+					
+				    if(return_code.equalsIgnoreCase("0000") || true)
+				    {
+				    	integrationStatus="Success";
+				    	ErrDesc = "Notify Done Successfully";
+				    }
+					if ("Success".equalsIgnoreCase(integrationStatus))
+					{
+						decisionValue = "Success";
+						DCCNotifyLog.DCCNotifyLogger.debug("Decision in success: " +decisionValue);
+						attributesTag="<Decision>"+decisionValue+"</Decision>";
+					}
+					else
+					{
+						ErrDesc = return_desc; //integrationStatus.replace("~", ",").replace("|", "\n");
+						decisionValue = "Failed";
+						DCCNotifyLog.DCCNotifyLogger.debug("Decision in else : " +decisionValue);
+						attributesTag="<Decision>"+decisionValue+"</Decision>";
+					}
+
+					//To be modified according to output of Integration Call.
+
+					//Lock Workitem.
+					String getWorkItemInputXML = CommonMethods.getWorkItemInput(cabinetName, sessionId, processInstanceID,WorkItemID);
+					String getWorkItemOutputXml = CommonMethods.WFNGExecute(getWorkItemInputXML,sJtsIp,iJtsPort,1);
+					DCCNotifyLog.DCCNotifyLogger.debug("Output XML For WmgetWorkItemCall: " + getWorkItemOutputXml);
+
+					XMLParser xmlParserGetWorkItem = new XMLParser(getWorkItemOutputXml);
+					String getWorkItemMainCode = xmlParserGetWorkItem.getValueOf("MainCode");
+					DCCNotifyLog.DCCNotifyLogger.debug("WmgetWorkItemCall Maincode:  "+ getWorkItemMainCode);
+
+					if (getWorkItemMainCode.trim().equals("0") || true )
+					{
+						DCCNotifyLog.DCCNotifyLogger.debug("WMgetWorkItemCall Successful: "+getWorkItemMainCode);
+
+						//String assignWorkitemAttributeInputXML=CommonMethods.assignWorkitemAttributeInput(cabinetName, sessionId,processInstanceID,WorkItemID,attributesTag);
+						
+						String assignWorkitemAttributeInputXML = "<?xml version=\"1.0\"?><WMAssignWorkItemAttributes_Input>"
+								+ "<Option>WMAssignWorkItemAttributes</Option>"
+								+ "<EngineName>"+cabinetName+"</EngineName>"
+								+ "<SessionId>"+sessionId+"</SessionId>"
+								+ "<ProcessInstanceId>"+processInstanceID+"</ProcessInstanceId>"
+								+ "<WorkItemId>"+WorkItemID+"</WorkItemId>"
+								+ "<ActivityId>"+ActivityID+"</ActivityId>"
+								+ "<ProcessDefId>"+ProcessDefId+"</ProcessDefId>"
+								+ "<LastModifiedTime></LastModifiedTime>"
+								+ "<ActivityType>"+ActivityType+"</ActivityType>"
+								+ "<complete>D</complete>"
+								+ "<AuditStatus></AuditStatus>"
+								+ "<Comments></Comments>"
+								+ "<UserDefVarFlag>Y</UserDefVarFlag>"
+								+ "<Attributes>"+attributesTag+"</Attributes>"
+								+ "</WMAssignWorkItemAttributes_Input>";
+						
+						DCCNotifyLog.DCCNotifyLogger.debug("InputXML for assignWorkitemAttribute Call Notify: "+assignWorkitemAttributeInputXML);
+
+						String assignWorkitemAttributeOutputXML=CommonMethods.WFNGExecute(assignWorkitemAttributeInputXML,sJtsIp,
+								iJtsPort,1);
+						
+						DCCNotifyLog.DCCNotifyLogger.debug("OutputXML for assignWorkitemAttribute Call Notify: "+assignWorkitemAttributeOutputXML);
+						
+						XMLParser xmlParserWorkitemAttribute = new XMLParser(assignWorkitemAttributeOutputXML);
+						String assignWorkitemAttributeMainCode = xmlParserWorkitemAttribute.getValueOf("MainCode");
+						DCCNotifyLog.DCCNotifyLogger.debug("AssignWorkitemAttribute MainCode: "+assignWorkitemAttributeMainCode);
+
+						if(assignWorkitemAttributeMainCode.trim().equalsIgnoreCase("0"))
+						{
+							DCCNotifyLog.DCCNotifyLogger.debug("AssignWorkitemAttribute Successful: "+assignWorkitemAttributeMainCode);
+							System.out.println(processInstanceID + "Complete Succesfully with status "+decisionValue);
+							DCCNotifyLog.DCCNotifyLogger.debug("WorkItem moved to next Workstep.");
+						}
+						else
+						{
+							DCCNotifyLog.DCCNotifyLogger.debug("decisionValue : "+decisionValue);
+						}
+						
+						DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+						
+						Date current_date = new Date();
+						String formattedEntryDatetime=dateFormat.format(current_date);
+						DCCNotifyLog.DCCNotifyLogger.debug("FormattedEntryDatetime: "+formattedEntryDatetime);
+						
+						String columnNames="wi_name,decision_date_time,workstep,user_name,Decision,Remarks";
+						String columnValues="'"+processInstanceID+"','"+formattedEntryDatetime+"','"+ActivityName+"','"
+						+CommonConnection.getUsername()+"','"+decisionValue+"','"+ErrDesc+"'";
+
+						String apInsertInputXML=CommonMethods.apInsert(cabinetName, sessionId, columnNames, columnValues,"NG_DCC_GR_DECISION_HISTORY");
+						DCCNotifyLog.DCCNotifyLogger.debug("APInsertInputXML: "+apInsertInputXML);
+
+						String apInsertOutputXML = CommonMethods.WFNGExecute(apInsertInputXML,sJtsIp,iJtsPort,1);
+						DCCNotifyLog.DCCNotifyLogger.debug("APInsertOutputXML: "+ apInsertInputXML);
+
+						XMLParser xmlParserAPInsert = new XMLParser(apInsertOutputXML);
+						String apInsertMaincode = xmlParserAPInsert.getValueOf("MainCode");
+						DCCNotifyLog.DCCNotifyLogger.debug("Status of apInsertMaincode  "+ apInsertMaincode);
+
+						DCCNotifyLog.DCCNotifyLogger.debug("Completed On "+ ActivityName);
+
+						if(apInsertMaincode.equalsIgnoreCase("0"))
+						{
+							DCCNotifyLog.DCCNotifyLogger.debug("ApInsert successful: "+apInsertMaincode);
+							DCCNotifyLog.DCCNotifyLogger.debug("Inserted in WiHistory table successfully.");
+						}
+						else
+						{
+							DCCNotifyLog.DCCNotifyLogger.debug("ApInsert failed: "+apInsertMaincode);
+						}
+					}
+					else
+					{
+						getWorkItemMainCode="";
+						DCCNotifyLog.DCCNotifyLogger.debug("WmgetWorkItem failed: "+getWorkItemMainCode);
+					}
+				}
+			}
+		}
+			catch (Exception e)
+
+		{
+			DCCNotifyLog.DCCNotifyLogger.debug("Exception: "+e.getMessage());
+		}
+	}
+	
+	String socketConnection(String cabinetName, String username, String sessionId, String sJtsIp, String iJtsPort, String processInstanceID, String ws_name,
+			int connection_timeout, int integrationWaitTime,HashMap<String, String> socketDetailsMap, StringBuilder sInputXML)
+	{
+
+		String socketServerIP;
+		int socketServerPort;
+		Socket socket = null;
+		OutputStream out = null;
+		InputStream socketInputStream = null;
+		DataOutputStream dout = null;
+		DataInputStream din = null;
+		String outputResponse = null;
+		String inputRequest = null;
+		String inputMessageID = null;
+
+		try
+		{
+
+			DCCNotifyLog.DCCNotifyLogger.debug("userName "+ username);
+			DCCNotifyLog.DCCNotifyLogger.debug("SessionId "+ sessionId);
+
+			socketServerIP=socketDetailsMap.get("SocketServerIP");
+			DCCNotifyLog.DCCNotifyLogger.debug("SocketServerIP "+ socketServerIP);
+			socketServerPort=Integer.parseInt(socketDetailsMap.get("SocketServerPort"));
+			DCCNotifyLog.DCCNotifyLogger.debug("SocketServerPort "+ socketServerPort);
+
+	   		if (!("".equalsIgnoreCase(socketServerIP) && socketServerIP == null && socketServerPort==0))
+	   		{
+
+    			socket = new Socket(socketServerIP, socketServerPort);
+    			socket.setSoTimeout(connection_timeout*1000);
+    			out = socket.getOutputStream();
+    			socketInputStream = socket.getInputStream();
+    			dout = new DataOutputStream(out);
+    			din = new DataInputStream(socketInputStream);
+    			DCCNotifyLog.DCCNotifyLogger.debug("Dout " + dout);
+    			DCCNotifyLog.DCCNotifyLogger.debug("Din " + din);
+
+    			outputResponse = "";
+
+    			inputRequest = getRequestXML(cabinetName,sessionId ,processInstanceID, ws_name, username, sInputXML);
+
+
+    			if (inputRequest != null && inputRequest.length() > 0)
+    			{
+    				int inputRequestLen = inputRequest.getBytes("UTF-16LE").length;
+    				DCCNotifyLog.DCCNotifyLogger.debug("RequestLen: "+inputRequestLen + "");
+    				inputRequest = inputRequestLen + "##8##;" + inputRequest;
+    				DCCNotifyLog.DCCNotifyLogger.debug("InputRequest"+"Input Request Bytes : "+ inputRequest.getBytes("UTF-16LE"));
+    				dout.write(inputRequest.getBytes("UTF-16LE"));dout.flush();
+    			}
+    			byte[] readBuffer = new byte[500];
+    			int num = din.read(readBuffer);
+    			if (num > 0)
+    			{
+    				byte[] arrayBytes = new byte[num];
+    				System.arraycopy(readBuffer, 0, arrayBytes, 0, num);
+    				outputResponse = outputResponse+ new String(arrayBytes, "UTF-16LE");
+					inputMessageID = outputResponse;
+    				DCCNotifyLog.DCCNotifyLogger.debug("OutputResponse: "+outputResponse);
+
+    				if(!"".equalsIgnoreCase(outputResponse))
+    					outputResponse = getResponseXML(cabinetName,sJtsIp,iJtsPort,sessionId, processInstanceID,outputResponse,integrationWaitTime);
+
+    				if(outputResponse.contains("&lt;"))
+    				{
+    					outputResponse=outputResponse.replaceAll("&lt;", "<");
+    					outputResponse=outputResponse.replaceAll("&gt;", ">");
+    				}
+    			}
+    			socket.close();
+
+				outputResponse = outputResponse.replaceAll("</MessageId>","</MessageId>/n<InputMessageId>"+inputMessageID+"</InputMessageId>");
+
+				//DCCNotifyAPPLog.DCCNotifyLogger.debug("outputResponse "+outputResponse);
+				return outputResponse;
+
+    	 		}
+
+    		else
+    		{
+    			DCCNotifyLog.DCCNotifyLogger.debug("SocketServerIp and SocketServerPort is not maintained "+"");
+    			DCCNotifyLog.DCCNotifyLogger.debug("SocketServerIp is not maintained "+	socketServerIP);
+    			DCCNotifyLog.DCCNotifyLogger.debug(" SocketServerPort is not maintained "+	socketServerPort);
+    			return "Socket Details not maintained";
+    		}
+
+		}
+
+		catch (Exception e)
+		{
+			System.out.println(e.getMessage());
+			DCCNotifyLog.DCCNotifyLogger.debug("Exception Occured Mq_connection_CC"+e.getStackTrace());
+			return "";
+		}
+		finally
+		{
+			try
+			{
+				if(out != null)
+				{
+					out.close();
+					out=null;
+				}
+				if(socketInputStream != null)
+				{
+
+					socketInputStream.close();
+					socketInputStream=null;
+				}
+				if(dout != null)
+				{
+
+					dout.close();
+					dout=null;
+				}
+				if(din != null)
+				{
+
+					din.close();
+					din=null;
+				}
+				if(socket != null)
+				{
+					if(!socket.isClosed())
+						socket.close();
+					socket=null;
+				}
+
+			}
+
+			catch(Exception e)
+			{
+				DCCNotifyLog.DCCNotifyLogger.debug("Final Exception Occured Mq_connection_CC"+e.getStackTrace());
+				//printException(e);
+			}
+		}
+
+
+	}
+	private String getResponseXML(String cabinetName,String sJtsIp,String iJtsPort, String sessionId, String processInstanceID,String message_ID, int integrationWaitTime)
+	{
+
+		String outputResponseXML="";
+		try
+		{
+			String QueryString = "select OUTPUT_XML from NG_DCC_XMLLOG_HISTORY with (nolock) where MESSAGE_ID ='"+message_ID+"' and WI_NAME = '"+processInstanceID+"'";
+
+			String responseInputXML =CommonMethods.apSelectWithColumnNames(QueryString, cabinetName, sessionId);
+			DCCNotifyLog.DCCNotifyLogger.debug("Response APSelect InputXML: "+responseInputXML);
+
+			int Loop_count=0;
+			do
+			{
+				String responseOutputXML=CommonMethods.WFNGExecute(responseInputXML,sJtsIp,iJtsPort,1);
+				DCCNotifyLog.DCCNotifyLogger.debug("Response APSelect OutputXML: "+responseOutputXML);
+
+			    XMLParser xmlParserSocketDetails= new XMLParser(responseOutputXML);
+			    String responseMainCode = xmlParserSocketDetails.getValueOf("MainCode");
+			    DCCNotifyLog.DCCNotifyLogger.debug("ResponseMainCode: "+responseMainCode);
+
+
+
+			    int responseTotalRecords = Integer.parseInt(xmlParserSocketDetails.getValueOf("TotalRetrieved"));
+			    DCCNotifyLog.DCCNotifyLogger.debug("ResponseTotalRecords: "+responseTotalRecords);
+
+			    if (responseMainCode.equals("0") && responseTotalRecords > 0)
+				{
+
+					String responseXMLData=xmlParserSocketDetails.getNextValueOf("Record");
+					responseXMLData =responseXMLData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+	        		XMLParser xmlParserResponseXMLData = new XMLParser(responseXMLData);
+	        		//DCCNotifyAPPLog.DCCNotifyLogger.debug("ResponseXMLData: "+responseXMLData);
+
+	        		outputResponseXML=xmlParserResponseXMLData.getValueOf("OUTPUT_XML");
+	        		//DCCNotifyAPPLog.DCCNotifyLogger.debug("OutputResponseXML: "+outputResponseXML);
+
+	        		if("".equalsIgnoreCase(outputResponseXML)){
+	        			outputResponseXML="Error";
+	    			}
+	        		break;
+				}
+			    Loop_count++;
+			    Thread.sleep(1000);
+			}
+			while(Loop_count<integrationWaitTime);
+			DCCNotifyLog.DCCNotifyLogger.debug("integrationWaitTime: "+integrationWaitTime);
+
+		}
+		catch(Exception e)
+		{
+			DCCNotifyLog.DCCNotifyLogger.debug("Exception occurred in outputResponseXML" + e.getMessage());
+			outputResponseXML="Error";
+		}
+
+		return outputResponseXML;
+
+	}
+	
+	private String getRequestXML(String cabinetName, String sessionId,
+			String processInstanceID, String ws_name, String userName, StringBuilder sInputXML)
+	{
+		StringBuffer strBuff = new StringBuffer();
+		strBuff.append("<APMQPUTGET_Input>");
+		strBuff.append("<SessionId>" + sessionId + "</SessionId>");
+		strBuff.append("<EngineName>" + cabinetName + "</EngineName>");
+		strBuff.append("<XMLHISTORY_TABLENAME>NG_DCC_XMLLOG_HISTORY</XMLHISTORY_TABLENAME>");
+		strBuff.append("<WI_NAME>" + processInstanceID + "</WI_NAME>");
+		strBuff.append("<WS_NAME>" + ws_name + "</WS_NAME>");
+		strBuff.append("<USER_NAME>" + userName + "</USER_NAME>");
+		strBuff.append("<MQ_REQUEST_XML>");
+		strBuff.append(sInputXML);
+		strBuff.append("</MQ_REQUEST_XML>");
+		strBuff.append("</APMQPUTGET_Input>");
+		DCCNotifyLog.DCCNotifyLogger.debug("GetRequestXML: "+ strBuff.toString());
+		return strBuff.toString();
+	}
+	
+
+	private int readConfig() {
+		Properties p = null;
+		try {
+
+			p = new Properties();
+			p.load(new FileInputStream(new File(System.getProperty("user.dir") + File.separator + "ConfigFiles" + File.separator + "DCC_Notify_Config.properties")));
+
+			Enumeration<?> names = p.propertyNames();
+
+			while (names.hasMoreElements()) {
+				String name = (String) names.nextElement();
+				NotifyAppConfigParamMap.put(name, p.getProperty(name));
+			}
+		} catch (Exception e) {
+			return -1;
+		}
+		return 0;
+	}
+}
+
+
+

@@ -1,0 +1,16 @@
+Manifest-Version: 1.0
+Class-Path: . lib/DataEncryption.jar lib/log4j-1.2.14.jar lib/ngejbcal
+ lbroker.jar lib/omnishared.jar lib/SecurityAPI.jar lib/wfdesktop.jar 
+ lib/wfsclient.jar lib/com.ibm.ws.ejb.thinclient_8.5.0.jar lib/stubswf
+ scustom.jar lib/stubwfs.jar lib/Amazon.jar lib/aws-java-sdk-1.11.40.j
+ ar lib/azure-storage-5.0.0.jar lib/commons-io-2.0.1.jar lib/ISPack.ja
+ r lib/jdts.jar lib/NIPLJ.jar lib/nsms.jar lib/commons-codec-1.7.jar l
+ ib/ejb.jar lib/ejbclient.jar lib/stubs.jar lib/jxl.jar lib/itextpdf-5
+ .3.2.jar lib/itextpdf-5.5.8.jar lib/bcprov-jdk15on-1.70.jar lib/itext
+ -licensekey-1.0.4.jar lib/poi-3.9.jar lib/poi-ooxml-3.9.jar lib/poi-o
+ oxml-schemas-3.9.jar lib/dom4j-1.6.1.jar lib/json-simple-1.1.1.jar li
+ b/pdfbox-1.8.3.jar lib/stax-api-1.0.1.jar lib/xml-apis-1.0.b2.jar 
+ lib/xmlbeans-2.3.0.jar lib/itextpdf-5.5.13.2.jar lib/Admin.jar lib/ojdbc8.jar 
+Created-By: 1.8.0_152 (Oracle Corporation)
+Main-Class: com.newgen.main.RAKDigitalIntegrationUtility
+

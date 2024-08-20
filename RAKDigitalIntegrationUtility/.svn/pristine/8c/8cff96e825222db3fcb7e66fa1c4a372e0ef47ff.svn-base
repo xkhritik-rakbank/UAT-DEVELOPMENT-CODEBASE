@@ -1,0 +1,34 @@
+<EE_EAI_MESSAGE>
+   <EE_EAI_HEADER>
+      <MsgFormat>AWB_GENERATION</MsgFormat>
+      <MsgVersion>0001</MsgVersion>
+      <RequestorChannelId>CAS</RequestorChannelId>
+      <RequestorUserId>RAKUSER</RequestorUserId>
+      <RequestorLanguage>E</RequestorLanguage>
+      <RequestorSecurityInfo>secure</RequestorSecurityInfo>
+      <ReturnCode>0000</ReturnCode>
+      <ReturnDesc>REQ</ReturnDesc>
+      <MessageId>CA179811c23</MessageId>
+      <Extra1>REQ||BPM.123</Extra1>
+      <Extra2>2014-03-25T11:05:30.000+04:00</Extra2>
+   </EE_EAI_HEADER>
+   <AWBGenerationRequest>
+      <ToCompany>employer_name</ToCompany>
+      <ToAddress>Address</ToAddress>
+      <ToLocation>Street_location</ToLocation>
+      <ToCountry>Address_country</ToCountry>
+      <ToCperson>Full_name</ToCperson>
+      <ToContactno>MobNo</ToContactno>
+      <ToMobileno>MobNo</ToMobileno>
+      <ReferenceNumber>WI_name</ReferenceNumber>
+      <Weight>1.0</Weight>
+      <Pieces>1</Pieces>
+      <PackageType>Document</PackageType>
+      <CurrencyCode>AED</CurrencyCode>
+      <NcndAmount>0.0</NcndAmount>
+      <ItemDescription></ItemDescription>
+      <SpecialInstruction></SpecialInstruction>
+      <ProductType>0</ProductType>
+      <BranchName>Dubai</BranchName>
+   </AWBGenerationRequest>
+</EE_EAI_MESSAGE>

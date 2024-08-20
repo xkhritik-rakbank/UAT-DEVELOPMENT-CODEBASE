@@ -1,0 +1,26 @@
+<EE_EAI_MESSAGE>
+   <EE_EAI_HEADER>
+      <MsgFormat>NOTIFY_APPLICATION</MsgFormat>
+      <MsgVersion>0001</MsgVersion>
+      <RequestorChannelId>CAS</RequestorChannelId>
+      <RequestorUserId>RAKUSER</RequestorUserId>
+      <RequestorLanguage>E</RequestorLanguage>
+      <RequestorSecurityInfo>secure</RequestorSecurityInfo>
+      <ReturnCode>911</ReturnCode>
+      <ReturnDesc>Issuer Timed Out</ReturnDesc>
+      <MessageId>zxxsxrftf_0052</MessageId>
+      <Extra1>REQ||SHELL.JOHN</Extra1>
+      <Extra2>YYYY-MM-DDThh:mm:ss.mmm+hh:mm</Extra2>
+   </EE_EAI_HEADER>
+   <NotifyApplicationStatusRequest>
+      <BankId>RAK</BankId>
+      <Process_Name>Digital_CC</Process_Name>
+      <Subprocess_Name>FIRCO_DOCS_REQD</Subprocess_Name>
+      <ChannelId>DEH</ChannelId>
+      <WorkitemNumber>#WI_NAME#</WorkitemNumber>
+      <ProspectId>#PROSPECTID#</ProspectId>
+      <DocRequired>#DOCREQUIRED#</DocRequired>
+      #DOCUMENTLIST#
+      <ActionedDate>#ACTIONEDDATE#</ActionedDate>
+   </NotifyApplicationStatusRequest>
+</EE_EAI_MESSAGE>

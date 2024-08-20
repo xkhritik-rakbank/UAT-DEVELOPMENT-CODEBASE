@@ -1,0 +1,723 @@
+package com.newgen.DCC.Update_AssignCIF;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import com.newgen.DCC.SystemIntegration.DCCSystemIntegrationLog;
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.XMLParser;
+import com.newgen.omni.wf.util.app.NGEjbClient;
+import com.newgen.wfdesktop.xmlapi.WFCallBroker;
+
+public class DCC_Update_Assign_CIF_SysIntegration implements Runnable {
+
+
+
+	private static NGEjbClient ngEjbClientCIFVer;
+
+	static Map<String, String> ConfigParamMap= new HashMap<String, String>();
+	
+	public static int sessionCheckInt=0;
+	public static int waitLoop=50;
+	public static int loopCount=50;
+	private static  String cabinetName;
+	private static  String jtsIP;
+	private static  String jtsPort;
+	private static String ActivityType;
+	private static String ProcessDefId;
+	private static String ActivityName;
+	private static String ActivityID;
+	private String sessionID = "";
+	private static String queueID = "";
+	private int socketConnectionTimeout=0;
+	private int integrationWaitTime=0;
+	private int sleepIntervalInMin=0;
+
+	@Override
+	public void run()
+	{
+		
+		
+
+		try
+		{
+			DCC_UpdateAssignCIFLog.setLogger();
+			ngEjbClientCIFVer = NGEjbClient.getSharedInstance();
+
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Connecting to Cabinet.");
+
+			int configReadStatus = readConfig();
+
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("configReadStatus "+configReadStatus);
+			if(configReadStatus !=0)
+			{
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.error("Could not Read Config Properties [RAOPStatus]");
+				return;
+			}
+
+			cabinetName = CommonConnection.getCabinetName();
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Cabinet Name: " + cabinetName);
+
+			jtsIP = CommonConnection.getJTSIP();
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("JTSIP: " + jtsIP);
+
+			jtsPort = CommonConnection.getJTSPort();
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("JTSPORT: " + jtsPort);
+
+			queueID = ConfigParamMap.get("queueID");
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("QueueID: " + queueID);
+
+			socketConnectionTimeout=Integer.parseInt(ConfigParamMap.get("MQ_SOCKET_CONNECTION_TIMEOUT"));
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("SocketConnectionTimeOut: "+socketConnectionTimeout);
+
+			integrationWaitTime=Integer.parseInt(ConfigParamMap.get("INTEGRATION_WAIT_TIME"));
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("IntegrationWaitTime: "+integrationWaitTime);
+
+			sleepIntervalInMin=Integer.parseInt(ConfigParamMap.get("SleepIntervalInMin"));
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("SleepIntervalInMin: "+sleepIntervalInMin);
+
+
+			sessionID = CommonConnection.getSessionID(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger, false);
+
+			if(sessionID.trim().equalsIgnoreCase(""))
+			{
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Could Not Connect to Server!");
+			}
+			else
+			{
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Session ID found: " + sessionID);
+				HashMap<String, String> socketDetailsMap= socketConnectionDetails(cabinetName, jtsIP, jtsPort,
+						sessionID);
+				while(true)
+				{
+					DCC_UpdateAssignCIFLog.setLogger();
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("DCC CIF Upadte and Assign CIF...123.");
+					startDCCUpdateAssignCIFUtility(cabinetName, jtsIP, jtsPort,sessionID,
+					queueID,socketDetailsMap);
+					System.out.println("No More workitems to Process, Sleeping!");
+					Thread.sleep(sleepIntervalInMin*60*1000);
+				}
+			}
+		}
+
+		catch(Exception e)
+		{
+			e.printStackTrace();
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.error("Exception Occurred in DCC CIF Verification : "+e);
+			final Writer result = new StringWriter();
+			final PrintWriter printWriter = new PrintWriter(result);
+			e.printStackTrace(printWriter);
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.error("Exception Occurred in DCC CIF Verification : "+result);
+		}
+	}
+
+	private int readConfig()
+	{
+		Properties p = null;
+		try {
+
+			p = new Properties();
+			p.load(new FileInputStream(new File(System.getProperty("user.dir")+ File.separator + "ConfigFiles"+ File.separator+ "DCC_UpdateAndAssignCIF_Config.properties")));
+
+			Enumeration<?> names = p.propertyNames();
+
+			while (names.hasMoreElements())
+			  {
+			    String name = (String) names.nextElement();
+			    ConfigParamMap.put(name, p.getProperty(name));
+			  }
+		    }
+		catch (Exception e)
+		{
+			return -1 ;
+		}
+		return 0;
+	}
+
+
+	private void startDCCUpdateAssignCIFUtility(String cabinetName,String sJtsIp,String iJtsPort,String sessionId,
+			String queueID,
+			HashMap<String, String> socketDetailsMap)
+	{
+		final String ws_name=ConfigParamMap.get("WS_NAME");
+		final String Queuename=ConfigParamMap.get("QueueName");
+
+		try
+		{
+			//Validate Session ID
+			sessionId  = CommonConnection.getSessionID(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger, false);
+			sessionID = sessionId;
+			if(sessionId==null || sessionId.equalsIgnoreCase("") || sessionId.equalsIgnoreCase("null"))
+			{
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.error("Could Not Get Session ID "+sessionId);
+				return;
+			}
+
+			//Fetch all Work-Items on given queueID.
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Fetching all Workitems on "+Queuename+" queue");
+			System.out.println("Fetching all Workitems on "+Queuename+" queue");
+			String fetchWorkitemListInputXML=CommonMethods.fetchWorkItemsInput(cabinetName, sessionId, queueID);
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("InputXML for fetchWorkList Call: "+fetchWorkitemListInputXML);
+
+			String fetchWorkitemListOutputXML= WFNGExecute(fetchWorkitemListInputXML,sJtsIp,iJtsPort,1);
+
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("WMFetchWorkList OutputXML: "+fetchWorkitemListOutputXML);
+
+			XMLParser xmlParserFetchWorkItemlist = new XMLParser(fetchWorkitemListOutputXML);
+
+			String fetchWorkItemListMainCode = xmlParserFetchWorkItemlist.getValueOf("MainCode");
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("FetchWorkItemListMainCode: "+fetchWorkItemListMainCode);
+
+			int fetchWorkitemListCount = Integer.parseInt(xmlParserFetchWorkItemlist.getValueOf("RetrievedCount"));
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("RetrievedCount for WMFetchWorkList Call: "+fetchWorkitemListCount);
+
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Number of workitems retrieved on CIF_Update_Initial: "+fetchWorkitemListCount);
+
+			System.out.println("Number of workitems retrieved on CIF_Update_Initial: "+fetchWorkitemListCount);
+
+			if (fetchWorkItemListMainCode.trim().equals("0") && fetchWorkitemListCount > 0)
+			{
+				for(int i=0; i<fetchWorkitemListCount; i++)
+				{
+					String fetchWorkItemlistData=xmlParserFetchWorkItemlist.getNextValueOf("Instrument");
+					fetchWorkItemlistData =fetchWorkItemlistData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: "+fetchWorkItemlistData);
+					XMLParser xmlParserfetchWorkItemData = new XMLParser(fetchWorkItemlistData);
+
+					String processInstanceID=xmlParserfetchWorkItemData.getValueOf("ProcessInstanceId");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Current ProcessInstanceID: "+processInstanceID);
+
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Processing Workitem: "+processInstanceID);
+					System.out.println("\nProcessing Workitem: "+processInstanceID);
+
+					String WorkItemID=xmlParserfetchWorkItemData.getValueOf("WorkItemId");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Current WorkItemID: "+WorkItemID);
+
+					String entryDateTime=xmlParserfetchWorkItemData.getValueOf("EntryDateTime");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Current EntryDateTime: "+entryDateTime);
+
+					ActivityName=xmlParserfetchWorkItemData.getValueOf("ActivityName");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("ActivityName: "+ActivityName);
+					
+					ActivityID = xmlParserfetchWorkItemData.getValueOf("WorkStageId");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("ActivityID: "+ActivityID);
+					ActivityType = xmlParserfetchWorkItemData.getValueOf("ActivityType");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("ActivityType: "+ActivityType);
+					ProcessDefId = xmlParserfetchWorkItemData.getValueOf("RouteId");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("ProcessDefId: "+ProcessDefId);
+					
+						//DCC CIF Integration Call
+						String decisionValue="";
+						String attributesTag="";
+						DCC_CIFUpdate objUpadteCIF= new DCC_CIFUpdate(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger);
+						String updateCIFIntegrationStatus=objUpadteCIF.customIntegration(cabinetName,sessionId, sJtsIp,
+								iJtsPort,processInstanceID,ws_name,integrationWaitTime,socketConnectionTimeout,  socketDetailsMap);
+						
+						String ErrDesc = "";
+						DCC_Assign_CIF objAssignCIF= new DCC_Assign_CIF(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger);
+						if ("Success".equalsIgnoreCase(updateCIFIntegrationStatus))
+						{
+							String DBQuery = "SELECT FIRCO_Flag,EFMS_Status,FTS_Ack_flg,is_stp,Dectech_Decision,UW_Decision,Product,Preferred_Language FROM NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+					        
+					        String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery,cabinetName,sessionId);
+					        DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("extTabDataIPXML: " + extTabDataIPXML);
+					        String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML,sJtsIp, CommonConnection.getJTSPort(), 1);
+					        DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+					        XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+					        int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+					        if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec > 0)
+					        {
+					        	String firco=xmlParserData.getValueOf("FIRCO_Flag");
+					        	String efms=xmlParserData.getValueOf("EFMS_Status");
+					        	String fts =xmlParserData.getValueOf("FTS_Ack_flg");
+					        	String stp =xmlParserData.getValueOf("is_stp");
+					        	String DectechDecision =xmlParserData.getValueOf("Dectech_Decision");
+					        	String UWDecision=xmlParserData.getValueOf("UW_Decision");
+					        	
+					        	//||"N".equalsIgnoreCase(fts)
+					        	if("Reject".equalsIgnoreCase(UWDecision)||"D".equalsIgnoreCase(DectechDecision)||"Y".equalsIgnoreCase(firco)||"Confirm-Fraud".equalsIgnoreCase(efms)||("Y".equalsIgnoreCase(stp)&&"R".equalsIgnoreCase(DectechDecision)))
+					        	{
+					        		decisionValue="Reject";
+									attributesTag="<Decision>"+decisionValue+"</Decision>"+
+												"<NOTIFY_DEH_IDENTIFIER>Decline_Prospect</NOTIFY_DEH_IDENTIFIER>";
+									ErrDesc = "CIF Update Done Successfully";
+									doneWI(processInstanceID,WorkItemID,decisionValue,entryDateTime,ErrDesc,attributesTag,sessionId);
+									continue;
+					        	}
+					        	
+					        }
+							
+							/*String prevWS = getPreviousWorkStep(processInstanceID,WorkItemID);
+							 if("Exceptions".equalsIgnoreCase(prevWS))
+							{
+								
+					        String UWDecision=getUWDecision(processInstanceID,WorkItemID);
+					        	if("Reject".equalsIgnoreCase(UWDecision))
+								{
+									decisionValue="Reject";
+									attributesTag="<Decision>"+decisionValue+"</Decision>";
+									ErrDesc = "CIF Update Done Successfully";
+									doneWI(processInstanceID,WorkItemID,decisionValue,entryDateTime,ErrDesc,attributesTag);
+									continue;
+									
+								}
+								
+								
+							}*/
+							
+							String assignCIFIntegrationStatus=objAssignCIF.DCC_Assign_CIF_Integration(cabinetName,jtsIP,jtsPort,sessionId,processInstanceID,ws_name,integrationWaitTime,socketConnectionTimeout,socketDetailsMap);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("assignCIFIntegrationStatus" +assignCIFIntegrationStatus);
+							String statuses []=null;
+							if(assignCIFIntegrationStatus!=null)
+							statuses = assignCIFIntegrationStatus.split("~");
+							if(statuses.length>0 && statuses[0].equalsIgnoreCase("0000"))
+							{
+								decisionValue = "Success";
+								String Product=xmlParserData.getValueOf("Product");
+					        	String Preferred_Language=xmlParserData.getValueOf("Preferred_Language");
+								//DCC_DocumentGeneration objDocGen = new DCC_DocumentGeneration(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger);
+								String pdfName="";
+								if("ISL".equalsIgnoreCase(Product))
+								{
+									if("AR".equalsIgnoreCase(Preferred_Language))
+										pdfName="";
+									else
+										pdfName="";
+								}
+								else
+								{
+									
+								}
+								//objDocGen.generate_Document_Customer_Consent(pdfName,processInstanceID, sessionId);
+							} 
+							else
+							{ 	 
+								ErrDesc = "Assign CIF Failed..";
+								if(statuses.length>1)
+								ErrDesc =ErrDesc +statuses[1];
+								decisionValue = "Failed";
+								DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Decision" +decisionValue);
+								attributesTag="<Decision>"+decisionValue+"</Decision>";
+								doneWI(processInstanceID,WorkItemID,decisionValue,entryDateTime,ErrDesc,attributesTag,sessionId);
+								continue;
+							}
+							
+						}
+						else
+						{
+							ErrDesc = updateCIFIntegrationStatus.replace("~", ",").replace("|", "\n");
+							decisionValue = "Failed";
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Decision" +decisionValue);
+							attributesTag="<Decision>"+decisionValue+"</Decision>";
+							doneWI(processInstanceID,WorkItemID,decisionValue,entryDateTime,ErrDesc,attributesTag,sessionId);
+							continue;
+
+						}
+				}
+			}
+		}
+			catch (Exception e)
+
+		{
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Exception: "+e.getMessage());
+		}
+	}
+
+	private void doneWI(String processInstanceID,String WorkItemID,String decisionValue,String entryDateTime ,String ErrDesc,String attributesTag,String sessionId)
+	{
+		try
+		{
+			//Lock Workitem.
+			String getWorkItemInputXML = CommonMethods.getWorkItemInput(cabinetName, sessionId, processInstanceID,WorkItemID);
+			String getWorkItemOutputXml = WFNGExecute(getWorkItemInputXML,jtsIP,jtsPort,1);
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Output XML For WmgetWorkItemCall: "+ getWorkItemOutputXml);
+
+			XMLParser xmlParserGetWorkItem = new XMLParser(getWorkItemOutputXml);
+			String getWorkItemMainCode = xmlParserGetWorkItem.getValueOf("MainCode");
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("WmgetWorkItemCall Maincode:  "+ getWorkItemMainCode);
+
+			if (getWorkItemMainCode.trim().equals("0"))
+			{
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("WMgetWorkItemCall Successful: "+getWorkItemMainCode);
+
+				//String assignWorkitemAttributeInputXML=CommonMethods.assignWorkitemAttributeInput(cabinetName, sessionId,processInstanceID,WorkItemID,attributesTag);
+				
+				String assignWorkitemAttributeInputXML = "<?xml version=\"1.0\"?><WMAssignWorkItemAttributes_Input>"
+						+ "<Option>WMAssignWorkItemAttributes</Option>"
+						+ "<EngineName>"+cabinetName+"</EngineName>"
+						+ "<SessionId>"+sessionId+"</SessionId>"
+						+ "<ProcessInstanceId>"+processInstanceID+"</ProcessInstanceId>"
+						+ "<WorkItemId>"+WorkItemID+"</WorkItemId>"
+						+ "<ActivityId>"+ActivityID+"</ActivityId>"
+						+ "<ProcessDefId>"+ProcessDefId+"</ProcessDefId>"
+						+ "<LastModifiedTime></LastModifiedTime>"
+						+ "<ActivityType>"+ActivityType+"</ActivityType>"
+						+ "<complete>D</complete>"
+						+ "<AuditStatus></AuditStatus>"
+						+ "<Comments></Comments>"
+						+ "<UserDefVarFlag>Y</UserDefVarFlag>"
+						+ "<Attributes>"+attributesTag+"</Attributes>"
+						+ "</WMAssignWorkItemAttributes_Input>";
+				
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("InputXML for assignWorkitemAttribute Call: "+assignWorkitemAttributeInputXML);
+
+				String assignWorkitemAttributeOutputXML=WFNGExecute(assignWorkitemAttributeInputXML,jtsIP,
+						jtsPort,1);
+
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("OutputXML for assignWorkitemAttribute Call: "+assignWorkitemAttributeOutputXML);
+
+				XMLParser xmlParserWorkitemAttribute = new XMLParser(assignWorkitemAttributeOutputXML);
+				String assignWorkitemAttributeMainCode = xmlParserWorkitemAttribute.getValueOf("MainCode");
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("AssignWorkitemAttribute MainCode: "+assignWorkitemAttributeMainCode);
+
+				if(assignWorkitemAttributeMainCode.trim().equalsIgnoreCase("0"))
+				{
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("AssignWorkitemAttribute Successful: "+assignWorkitemAttributeMainCode);	
+					if ("0".trim().equalsIgnoreCase("0"))
+					{
+						//DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("WmCompleteWorkItem successful: "+completeWorkitemMaincode);
+						System.out.println(processInstanceID + "Complete Succesfully with status "+decisionValue);
+
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("WorkItem moved to next Workstep.");
+
+						SimpleDateFormat inputDateformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+						SimpleDateFormat outputDateFormat=new SimpleDateFormat("dd-MMM-yyyy hh:mm:ss a");
+
+						Date entryDatetimeFormat = inputDateformat.parse(entryDateTime);
+						String formattedEntryDatetime=outputDateFormat.format(entryDatetimeFormat);
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("FormattedEntryDatetime: "+formattedEntryDatetime);
+
+						Date actionDateTime= new Date();
+						String formattedActionDateTime=outputDateFormat.format(actionDateTime);
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("FormattedActionDateTime: "+formattedActionDateTime);
+
+						//Insert in WIHistory Table.
+						String columnNames="WI_NAME,dec_date,WORKSTEP,USER_NAME,DECISION,decision_date_time,REMARKS";
+						String columnValues="'"+processInstanceID+"','"+formattedActionDateTime+"','"+ActivityName+"','"
+						+CommonConnection.getUsername()+"','"+decisionValue+"','"+formattedEntryDatetime+"','"+ErrDesc+"'";
+
+						String apInsertInputXML=CommonMethods.apInsert(cabinetName, sessionId, columnNames, columnValues,"NG_DCC_GR_DECISION_HISTORY");
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("APInsertInputXML: "+apInsertInputXML);
+
+						String apInsertOutputXML = WFNGExecute(apInsertInputXML,jtsIP,jtsPort,1);
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("APInsertOutputXML: "+ apInsertInputXML);
+
+						XMLParser xmlParserAPInsert = new XMLParser(apInsertOutputXML);
+						String apInsertMaincode = xmlParserAPInsert.getValueOf("MainCode");
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Status of apInsertMaincode  "+ apInsertMaincode);
+
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Completed On "+ ActivityName);
+
+
+						if(apInsertMaincode.equalsIgnoreCase("0"))
+						{
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("ApInsert successful: "+apInsertMaincode);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Inserted in WiHistory table successfully.");
+						}
+						else
+						{
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("ApInsert failed: "+apInsertMaincode);
+						}
+					}
+					else
+					{
+						//completeWorkitemMaincode="";
+						//DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("WMCompleteWorkItem failed: "+completeWorkitemMaincode);
+					}
+				}
+				else if("11".equalsIgnoreCase(assignWorkitemAttributeMainCode)){
+					
+					sessionID = CommonConnection.getSessionID(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger, false);
+					doneWI(processInstanceID,WorkItemID,decisionValue,entryDateTime ,ErrDesc,attributesTag,sessionID);
+				}
+				else
+				{
+					assignWorkitemAttributeMainCode="";
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("AssignWorkitemAttribute failed: "+assignWorkitemAttributeMainCode);
+				}
+			}
+			else
+			{
+				getWorkItemMainCode="";
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("WmgetWorkItem failed: "+getWorkItemMainCode);
+			}
+		}
+		
+		catch (Exception e)
+		{
+			DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("DoneWI Exception: "+e.toString());
+		}
+	}
+
+
+			private HashMap<String,String> socketConnectionDetails(String cabinetName, String sJtsIp, String iJtsPort,
+					String sessionID)
+			{
+				HashMap<String, String> socketDetailsMap = new HashMap<String, String>();
+
+				try
+				{
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Fetching Socket Connection Details.");
+					System.out.println("Fetching Socket Connection Details.");
+
+					String socketDetailsQuery = "SELECT SocketServerIP,SocketServerPort FROM NG_BPM_MQ_TABLE with (nolock) where ProcessName = 'DCC' and CallingSource = 'Utility'";
+
+					String socketDetailsInputXML =CommonMethods.apSelectWithColumnNames(socketDetailsQuery, cabinetName, sessionID);
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Socket Details APSelect InputXML: "+socketDetailsInputXML);
+
+					String socketDetailsOutputXML=WFNGExecute(socketDetailsInputXML,sJtsIp,iJtsPort,1);
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Socket Details APSelect OutputXML: "+socketDetailsOutputXML);
+
+					XMLParser xmlParserSocketDetails= new XMLParser(socketDetailsOutputXML);
+					String socketDetailsMainCode = xmlParserSocketDetails.getValueOf("MainCode");
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("SocketDetailsMainCode: "+socketDetailsMainCode);
+
+					int socketDetailsTotalRecords = Integer.parseInt(xmlParserSocketDetails.getValueOf("TotalRetrieved"));
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("SocketDetailsTotalRecords: "+socketDetailsTotalRecords);
+
+					if(socketDetailsMainCode.equalsIgnoreCase("0")&& socketDetailsTotalRecords>0)
+					{
+						String xmlDataSocketDetails=xmlParserSocketDetails.getNextValueOf("Record");
+						xmlDataSocketDetails =xmlDataSocketDetails.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+						XMLParser xmlParserSocketDetailsRecord = new XMLParser(xmlDataSocketDetails);
+
+						String socketServerIP=xmlParserSocketDetailsRecord.getValueOf("SocketServerIP");
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("SocketServerIP: "+socketServerIP);
+						socketDetailsMap.put("SocketServerIP", socketServerIP);
+
+						String socketServerPort=xmlParserSocketDetailsRecord.getValueOf("SocketServerPort");
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("SocketServerPort " + socketServerPort);
+						socketDetailsMap.put("SocketServerPort", socketServerPort);
+
+						DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("SocketServer Details found.");
+						System.out.println("SocketServer Details found.");
+
+					}
+				}
+				catch (Exception e)
+				{
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Exception in getting Socket Connection Details: "+e.getMessage());
+					System.out.println("Exception in getting Socket Connection Details: "+e.getMessage());
+				}
+
+				return socketDetailsMap;
+			}
+			protected static String WFNGExecute(String ipXML, String jtsServerIP, String serverPort,
+					int flag) throws IOException, Exception
+			{
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("In WF NG Execute : " + serverPort);
+				try
+				{
+					if (serverPort.startsWith("33"))
+						return WFCallBroker.execute(ipXML, jtsServerIP,
+								Integer.parseInt(serverPort), 1);
+					else
+						return ngEjbClientCIFVer.makeCall(jtsServerIP, serverPort,
+								"WebSphere", ipXML);
+				}
+				catch (Exception e)
+				{
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Exception Occured in WF NG Execute : "+ e.getMessage());
+					e.printStackTrace();
+					return "Error";
+				}
+			}
+			
+			private  String getPreviousWorkStep( String sWorkItemName, String sWorkitemId )
+			{
+				String prevWS="";
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("Start of function getPreviousWorkStep ");
+				String outputXML=null;
+				String mainCode=null;
+				try
+				{
+
+					sessionCheckInt=0;
+					while(sessionCheckInt<loopCount)
+					{
+						try 
+						{
+							XMLParser objXMLParser = new XMLParser();
+							String sqlQuery = "select PreviousStage from WFINSTRUMENTTABLE with(nolock) where ProcessInstanceID = '"+sWorkItemName+"' and WorkItemId='"+sWorkitemId+"'";
+							String InputXML = CommonMethods.apSelectWithColumnNames(sqlQuery,cabinetName, sessionID);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("Getting PreviousWorkStep from instrument table "+InputXML);
+							outputXML = WFNGExecute(InputXML, jtsIP, jtsPort, 1);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("OutputXML for getting PreviousWorkStep from external table "+outputXML);
+							objXMLParser.setInputXML(outputXML);
+							mainCode=objXMLParser.getValueOf("MainCode");
+							if (mainCode.equalsIgnoreCase("0")) 
+							{
+								prevWS = CommonMethods.getTagValues(outputXML, "PreviousStage");
+							}
+						} 
+						catch (Exception e) 
+						{
+							sessionCheckInt++;
+							waiteloopExecute(waitLoop);
+							continue;
+						}
+						if(mainCode.equalsIgnoreCase("0")){
+							break;
+						}
+						else if (mainCode.equalsIgnoreCase("11"))
+						{
+							sessionID  = CommonConnection.getSessionID(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger, false);
+						}
+						else
+						{
+							sessionCheckInt++;
+							break;
+						}
+					}
+
+
+				}
+				catch(Exception e)
+				{
+					e.printStackTrace();
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Inside catch of getPreviousWorkStep function with exception.."+e);
+				}
+				return prevWS;
+			}
+			private  String getUWDecision( String sWorkItemName, String sWorkitemId )
+			{
+				String decision="";
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("Start of function getUWDecision ");
+				String outputXML=null;
+				String mainCode=null;
+				try
+				{
+
+					sessionCheckInt=0;
+					while(sessionCheckInt<loopCount)
+					{
+						try 
+						{
+							XMLParser objXMLParser = new XMLParser();
+							String sqlQuery = "select UW_Decision from NG_DCC_EXTTABLE with(nolock) where Wi_Name = '"+sWorkItemName+"'";
+							String InputXML = CommonMethods.apSelectWithColumnNames(sqlQuery,cabinetName, sessionID);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("Getting UW_Decision from NG_DCC_EXTTABLE table "+InputXML);
+							outputXML = WFNGExecute(InputXML, jtsIP, jtsPort, 1);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("OutputXML for getting UW_Decision from external table "+outputXML);
+							objXMLParser.setInputXML(outputXML);
+							mainCode=objXMLParser.getValueOf("MainCode");
+							if (mainCode.equalsIgnoreCase("0")) 
+							{
+								decision = CommonMethods.getTagValues(outputXML, "UW_Decision");
+								if(decision==null)
+									decision="";
+							}
+						} 
+						catch (Exception e) 
+						{
+							sessionCheckInt++;
+							waiteloopExecute(waitLoop);
+							continue;
+						}
+						if(mainCode.equalsIgnoreCase("0")){
+							break;
+						}
+						else if (mainCode.equalsIgnoreCase("11"))
+						{
+							sessionID  = CommonConnection.getSessionID(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger, false);
+						}
+						else
+						{
+							sessionCheckInt++;
+							break;
+						}
+					}
+
+					
+				}
+				catch(Exception e)
+				{
+					e.printStackTrace();
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Inside catch of getUWDecision function with exception.."+e);
+				}
+				return decision;
+			}
+			private  String getDocName( String sWorkItemName)
+			{
+				String decision="";
+				DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("Start of function getDocName ");
+				String outputXML=null;
+				String mainCode=null;
+				try
+				{
+
+					sessionCheckInt=0;
+					while(sessionCheckInt<loopCount)
+					{
+						try 
+						{
+							XMLParser objXMLParser = new XMLParser();
+							String sqlQuery = "select Product,Preferred_Language from NG_DCC_EXTTABLE with(nolock) where Wi_Name = '"+sWorkItemName+"'";
+							String InputXML = CommonMethods.apSelectWithColumnNames(sqlQuery,cabinetName, sessionID);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("Getting getDocName from NG_DCC_EXTTABLE table "+InputXML);
+							outputXML = WFNGExecute(InputXML, jtsIP, jtsPort, 1);
+							DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.info("OutputXML for getting getDocName from external table "+outputXML);
+							objXMLParser.setInputXML(outputXML);
+							mainCode=objXMLParser.getValueOf("MainCode");
+							if (mainCode.equalsIgnoreCase("0")) 
+							{
+								decision = CommonMethods.getTagValues(outputXML, "UW_Decision");
+								if(decision==null)
+									decision="";
+							}
+						} 
+						catch (Exception e) 
+						{
+							sessionCheckInt++;
+							waiteloopExecute(waitLoop);
+							continue;
+						}
+						if(mainCode.equalsIgnoreCase("0")){
+							break;
+						}
+						else if (mainCode.equalsIgnoreCase("11"))
+						{
+							sessionID  = CommonConnection.getSessionID(DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger, false);
+						}
+						else
+						{
+							sessionCheckInt++;
+							break;
+						}
+					}
+
+					
+				}
+				catch(Exception e)
+				{
+					e.printStackTrace();
+					DCC_UpdateAssignCIFLog.DCC_Update_And_Assign_CIF_Logger.debug("Inside catch of getUWDecision function with exception.."+e);
+				}
+				return decision;
+			}
+
+			public static void waiteloopExecute(long wtime) {
+				try {
+					for (int i = 0; i < 10; i++) {
+						Thread.yield();
+						Thread.sleep(wtime / 10);
+					}
+				} catch (InterruptedException e) {
+				}
+			}
+
+}

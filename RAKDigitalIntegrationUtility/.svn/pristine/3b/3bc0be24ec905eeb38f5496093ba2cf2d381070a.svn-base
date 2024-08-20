@@ -1,0 +1,7 @@
+queueID=2089
+MQ_SOCKET_CONNECTION_TIMEOUT=60
+INTEGRATION_WAIT_TIME=65
+SleepIntervalInMin=1
+
+COOLINGDOCS=Passport_FirstPage
+DOCGENERATIONPATH=E:\\Eclipse_workplace\\RAKDigitalIntegrationUtility\\DownloadLoc\\Generated

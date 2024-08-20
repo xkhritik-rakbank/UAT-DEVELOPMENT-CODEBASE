@@ -1,0 +1,336 @@
+package com.newgen.DCC.CAMGenCIFUpdate;
+
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.Socket;
+import java.net.SocketException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Properties;
+
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.XMLParser;
+
+public class Digital_CC_CAMTemplate {
+
+	public String generate_CAM_ReportT(String pdfName, String Cif_Id, String processInstanceID, String sessionId)
+			throws IOException, Exception {
+
+		Digital_CCLog.Digital_CC.debug("Inside generate cam report method: ");
+		
+
+		String prop_file_loc = System.getProperty("user.dir") + System.getProperty("file.separator") + "ConfigFiles"
+				+ System.getProperty("file.separator") + "DCC_CAMGen_Config.properties";
+		Digital_CCLog.Digital_CC.debug("prop_file_loc: " + prop_file_loc);
+
+		File file = new File(prop_file_loc);
+		FileInputStream fileInput = new FileInputStream(file);
+		Properties properties = new Properties();
+		properties.load(fileInput);
+		fileInput.close();
+
+		String gtIP = properties.getProperty("gtIP");
+		Digital_CCLog.Digital_CC.debug("gtIP: " + gtIP);
+
+		String gtPortProperty = properties.getProperty("gtPort");
+		Digital_CCLog.Digital_CC.debug("gtPortProperty: " + gtPortProperty);
+
+		int gtPort = Integer.parseInt(gtPortProperty);
+		Digital_CCLog.Digital_CC.debug("gtPort: " + gtPort);
+		
+		// for current date time 
+		Date d = new Date();
+		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		String CurrentDateTime = dateFormat.format(d);
+	
+		String Query = "select distinct Created_Date,Is_STP,CUSTOMERNAME,Nationality, "
+				+ "Product_Desc,Selected_Card_Type,card_application_date,Age,IPA_Limit,EFMS_Status,"
+				+ "Requested_Limit,FIRCO_Status, Employer_Name,Date_Of_Joining,Designation,employercode,"
+				+ "FinalDBR,Aecb_score,Final_Limit,DBR_lifeStyle_expenses,deviation_description,"
+				+ "delegation_authority,Score_range,Underwriting_decision,Decision from NG_DCC_EXTTABLE with (NOLOCK) where Wi_Name ='"
+				+ processInstanceID + "'";
+
+		// for user name and decision at cad analy 1
+
+		String Query2 = "select Top 1 user_name,Decision,Remarks,rejectReason from NG_DCC_GR_DECISION_HISTORY with (NOLOCK)  where wi_name ='"
+				+ processInstanceID + "' order by decision_date_time desc";
+
+		Digital_CCLog.Digital_CC.debug("Query : " + Query);
+		Digital_CCLog.Digital_CC.debug("Query2 : " + Query2);
+
+		String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(Query, CommonConnection.getCabinetName(),
+				CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false));
+		Digital_CCLog.Digital_CC.debug("extTabDataIPXML: " + extTabDataIPXML);
+		String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		Digital_CCLog.Digital_CC.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+		XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+
+		// **************************** for second query
+		// ************************
+		String extTabDataIPXML2 = CommonMethods.apSelectWithColumnNames(Query, CommonConnection.getCabinetName(),
+				CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false));
+		Digital_CCLog.Digital_CC.debug("extTabDataIPXML2: " + extTabDataIPXML2);
+		String extTabDataOPXML2 = CommonMethods.WFNGExecute(extTabDataIPXML2, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		Digital_CCLog.Digital_CC.debug("extTabDataOPXML2: " + extTabDataOPXML2);
+
+		XMLParser xmlParserData2 = new XMLParser(extTabDataOPXML2);
+		// ****************************************************************************************
+		
+		// variables
+		String attrbList = "";
+		String Is_STP = xmlParserData.getValueOf("Is_STP");
+		Digital_CCLog.Digital_CC.debug("Is_STP: " + Is_STP);
+
+		/*String Created_Date = xmlParserData.getValueOf("Created_Date");
+		Digital_CCLog.Digital_CC.debug("Created_Date: " + Created_Date);*/
+
+		String CifId = xmlParserData.getValueOf("CifId");
+		String CUSTOMERNAME = xmlParserData.getValueOf("CUSTOMERNAME");
+		Digital_CCLog.Digital_CC.debug("CUSTOMERNAME: " + CUSTOMERNAME);
+
+		String Nationality = xmlParserData.getValueOf("Nationality");
+		Digital_CCLog.Digital_CC.debug("Nationality: " + Nationality);
+
+		String Product_Desc = xmlParserData.getValueOf("Product_Desc");
+		Digital_CCLog.Digital_CC.debug("Product_Desc: " + Product_Desc);
+
+		String Selected_Card_Type = xmlParserData.getValueOf("Selected_Card_Type");
+		Digital_CCLog.Digital_CC.debug("Selected_Card_Type: " + Selected_Card_Type);
+
+		String card_application_date = xmlParserData.getValueOf("card_application_date");
+		Digital_CCLog.Digital_CC.debug("card_application_date: " + card_application_date);
+
+		String Age = xmlParserData.getValueOf("Age");
+		Digital_CCLog.Digital_CC.debug("Age: " + Age);
+
+		String IPA_Limit = xmlParserData.getValueOf("IPA_Limit");
+		Digital_CCLog.Digital_CC.debug("IPA_Limit: " + IPA_Limit);
+
+		String EFMS_Status = xmlParserData.getValueOf("EFMS_Status");
+		Digital_CCLog.Digital_CC.debug("EFMS_Status: " + EFMS_Status);
+
+		String Requested_Limit = xmlParserData.getValueOf("Requested_Limit");
+		Digital_CCLog.Digital_CC.debug("Requested_Limit: " + Requested_Limit);
+
+		String FIRCO_Status = xmlParserData.getValueOf("FIRCO_Status");
+		Digital_CCLog.Digital_CC.debug("FIRCO_Status: " + FIRCO_Status);
+
+		String Employer_Name = xmlParserData.getValueOf("Employer_Name");
+		Digital_CCLog.Digital_CC.debug("Employer_Name: " + Employer_Name);
+
+		String Date_Of_Joining = xmlParserData.getValueOf("Date_Of_Joining");
+		Digital_CCLog.Digital_CC.debug("Date_Of_Joining: " + Date_Of_Joining);
+
+		String Designation = xmlParserData.getValueOf("Designation");
+		Digital_CCLog.Digital_CC.debug("Designation: " + Designation);
+		
+		String employercode = xmlParserData.getValueOf("employercode");
+		Digital_CCLog.Digital_CC.debug("employercode: " + employercode);
+
+		// employer status pl miss
+
+		String Final_Limit = xmlParserData.getValueOf("Final_Limit");
+		Digital_CCLog.Digital_CC.debug("Final_Limit: " + Final_Limit);
+
+		// declared income miss
+
+		// final income - final limit
+
+		String Decision = xmlParserData.getValueOf("Decision");
+		Digital_CCLog.Digital_CC.debug("Decision: " + Decision);
+
+		String Aecb_score = xmlParserData.getValueOf("Aecb_score");
+		Digital_CCLog.Digital_CC.debug("Aecb_score: " + Aecb_score);
+
+		String Score_range = xmlParserData.getValueOf("Score_range");
+		Digital_CCLog.Digital_CC.debug("Score_range: " + Score_range);
+
+		String FinalDBR = xmlParserData.getValueOf("FinalDBR");
+		Digital_CCLog.Digital_CC.debug("FinalDBR: " + FinalDBR);
+
+		String DBR_lifeStyle_expenses = xmlParserData.getValueOf("DBR_lifeStyle_expenses");
+		Digital_CCLog.Digital_CC.debug("DBR_lifeStyle_expenses: " + DBR_lifeStyle_expenses);
+
+		String deviation_description = xmlParserData.getValueOf("deviation_description");
+		Digital_CCLog.Digital_CC.debug("deviation_description: " + deviation_description);
+
+		String delegation_authority = xmlParserData.getValueOf("delegation_authority");
+		Digital_CCLog.Digital_CC.debug("delegation_authority: " + delegation_authority);
+
+		String Underwriting_decision = xmlParserData.getValueOf("Underwriting_decision");
+		Digital_CCLog.Digital_CC.debug("Underwriting_decision: " + Underwriting_decision);
+
+		// *********************second query varr
+		String user_name = xmlParserData2.getValueOf("user_name");
+		Digital_CCLog.Digital_CC.debug("user_name: " + user_name);
+
+		String Remarks = xmlParserData2.getValueOf("Remarks");
+		Digital_CCLog.Digital_CC.debug("Remarks: " + Remarks);
+
+		String rejectReason = xmlParserData2.getValueOf("rejectReason");
+		Digital_CCLog.Digital_CC.debug("rejectReason: " + rejectReason);
+
+		// third query ************************************
+		String sQueryDecisionHistory ="select top 1 COMPANY_STATUS_CC,COMPANY_STATUS_PL,EMPLOYER_CATEGORY_PL," +
+        "EMPLOYER_CATEGORY_PL_EXPAT,EMPLOYER_CATEGORY_PL_NATIONAL,INCLUDED_IN_CC_ALOC,INCLUDED_IN_PL_ALOC,cast(DATE_OF_INCLUSION_IN_CC_ALOC as date) as DATE_OF_INCLUSION_IN_CC_ALOC," +
+        "cast(DATE_OF_INCLUSION_IN_PL_ALOC as date) as DATE_OF_INCLUSION_IN_PL_ALOC,ALOC_REMARKS_PL from NG_RLOS_ALOC_OFFLINE_DATA with (nolock) where EMPLOYER_CODE='"+employercode+"'";
+
+		String extTabDataIPXMLDecisionHistory = CommonMethods.apSelectWithColumnNames(sQueryDecisionHistory, CommonConnection.getCabinetName(),
+				CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false));
+		Digital_CCLog.Digital_CC.debug("extTabDataIPXMLDecisionHistory: " + extTabDataIPXMLDecisionHistory);
+		String extTabDataOPXMLDecisionHistory = CommonMethods.WFNGExecute(extTabDataIPXMLDecisionHistory, CommonConnection.getJTSIP(),
+				CommonConnection.getJTSPort(), 1);
+		Digital_CCLog.Digital_CC.debug("extTabDataOPXMLDecisionHistory: " + extTabDataOPXMLDecisionHistory);
+
+		XMLParser xmlParserDataDecisionHistory = new XMLParser(extTabDataOPXMLDecisionHistory);
+		
+		//********************************************************
+		
+		// variables define 
+		
+		String COMPANY_STATUS_CC = xmlParserDataDecisionHistory.getValueOf("COMPANY_STATUS_CC");
+		Digital_CCLog.Digital_CC.debug("COMPANY_STATUS_CC: " + COMPANY_STATUS_CC);
+		
+		String COMPANY_STATUS_PL = xmlParserDataDecisionHistory.getValueOf("COMPANY_STATUS_PL");
+		Digital_CCLog.Digital_CC.debug("COMPANY_STATUS_PL: " + COMPANY_STATUS_PL);
+		
+		String EMPLOYER_CATEGORY_PL = xmlParserDataDecisionHistory.getValueOf("EMPLOYER_CATEGORY_PL");
+		Digital_CCLog.Digital_CC.debug("COMPANY_STATUS_PL: " + EMPLOYER_CATEGORY_PL);
+		
+		
+		
+		attrbList += "&<currentDateTime>&" + CurrentDateTime;
+		attrbList += "&<customerName>&" + CUSTOMERNAME;
+		attrbList += "&<nationality>&" + Nationality;
+		attrbList += "&<cardType>&" + Product_Desc;
+		attrbList += "&<card_application_date>&" + card_application_date;
+		attrbList += "&<cardApplicationDate>&" + card_application_date;
+		attrbList += "&<workitemNumber>&" + processInstanceID;
+		attrbList += "&<CIF>&" + Cif_Id;
+		attrbList += "&<age>&" + Age;
+		attrbList += "&<productType>&" + Product_Desc;
+		attrbList += "&<IPALimit>&" + IPA_Limit;
+		attrbList += "&<EFMSStatus>&" + EFMS_Status;
+		attrbList += "&<requestedLimit>&" + Requested_Limit;
+		attrbList += "&<fircoStatus>&" + FIRCO_Status;
+
+		attrbList += "&<employerName>&" + Employer_Name;
+		attrbList += "&<Date_Of_Joining>&" + Date_Of_Joining;
+		attrbList += "&<Designation>&" + Designation;
+		attrbList += "&<employercode>&" + employercode;
+		attrbList += "&<Final_Limit>&" + Final_Limit;
+		attrbList += "&<Score_range>&" + Score_range;
+		attrbList += "&<Aecb_score>&" + Aecb_score;
+		attrbList += "&<FinalDBR>&" + FinalDBR;
+		attrbList += "&<DBR_lifeStyle_expenses>&" + DBR_lifeStyle_expenses;
+		attrbList += "&<deviation_description>&" + deviation_description;
+		attrbList += "&<delegation_authority>&" + delegation_authority;
+		attrbList += "&<Underwriting_decision>&" + Underwriting_decision;
+		attrbList += "&<Decision>&" + Decision;
+
+		// **************//
+		attrbList += "&<user_name>&" + user_name;
+		attrbList += "&<Remarks>&" + Remarks;
+		attrbList += "&<rejectReason>&" + rejectReason;
+		
+		attrbList += "&<COMPANY_STATUS_CC>&" + COMPANY_STATUS_CC;
+		attrbList += "&<COMPANY_STATUS_PL>&" + COMPANY_STATUS_PL;
+		attrbList += "&<EMPLOYER_CATEGORY_PL>&" + EMPLOYER_CATEGORY_PL;
+
+		String output = makeSocketCall(attrbList, processInstanceID, pdfName, sessionId, gtIP, gtPort);
+		
+		Digital_CCLog.Digital_CC.debug("attrbList" + attrbList);
+		Digital_CCLog.Digital_CC.debug("output" + output);
+		
+	
+
+		return attrbList;
+
+	}
+
+	public String makeSocketCall(String argumentString, String wi_name, String docName, String sessionId, String gtIP,
+			int gtPort) {
+		String socketParams = argumentString + "~" + wi_name + "~" + docName + "~" + sessionId;
+
+		System.out.println("socketParams -- " + socketParams);
+		Digital_CCLog.Digital_CC.debug("socketParams" + socketParams);
+
+		Socket template_socket = null;
+		DataOutputStream template_dout = null;
+		DataInputStream template_in = null;
+		String result = "";
+		try {
+			// Socket write code started
+			template_socket = new Socket(gtIP, gtPort);
+			Digital_CCLog.Digital_CC.debug("template_socket" + template_socket);
+
+			template_dout = new DataOutputStream(template_socket.getOutputStream());
+			Digital_CCLog.Digital_CC.debug("template_dout" + template_dout);
+
+			if (socketParams != null && socketParams.length() > 0) {
+				int outPut_len = socketParams.getBytes("UTF-8").length;
+				Digital_CCLog.Digital_CC.debug("outPut_len" + outPut_len);
+				// CreditCard.mLogger.info("Final XML output len:
+				// "+outPut_len +
+				// "");
+				socketParams = outPut_len + "##8##;" + socketParams;
+				Digital_CCLog.Digital_CC.debug("socketParams--" + socketParams);
+				// CreditCard.mLogger.info("MqInputRequest"+"Input Request
+				// Bytes : "+
+				// mqInputRequest.getBytes("UTF-16LE"));
+
+				template_dout.write(socketParams.getBytes("UTF-8"));
+				template_dout.flush();
+			} else {
+				notify();
+			}
+			// Socket write code ended and read code started
+			template_socket.setSoTimeout(60 * 1000);
+			template_in = new DataInputStream(new BufferedInputStream(template_socket.getInputStream()));
+			byte[] readBuffer = new byte[50000];
+			int num = template_in.read(readBuffer);
+			if (num > 0) {
+				byte[] arrayBytes = new byte[num];
+				System.arraycopy(readBuffer, 0, arrayBytes, 0, num);
+				result = new String(arrayBytes, "UTF-8");
+				Digital_CCLog.Digital_CC.debug("result--" + result);
+			}
+		}
+
+		catch (SocketException se) {
+			se.printStackTrace();
+		} catch (IOException i) {
+			i.printStackTrace();
+		} catch (Exception io) {
+			io.printStackTrace();
+		} finally {
+			try {
+				if (template_dout != null) {
+					template_dout.close();
+					template_dout = null;
+				}
+				if (template_in != null) {
+					template_in.close();
+					template_in = null;
+				}
+				if (template_socket != null) {
+					if (!template_socket.isClosed()) {
+						template_socket.close();
+					}
+					template_socket = null;
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return result;
+	}
+}

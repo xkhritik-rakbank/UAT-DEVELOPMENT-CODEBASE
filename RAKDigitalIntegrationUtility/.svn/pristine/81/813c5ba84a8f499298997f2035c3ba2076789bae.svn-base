@@ -1,0 +1,30 @@
+MQ_SOCKET_CONNECTION_TIMEOUT=60
+INTEGRATION_WAIT_TIME=65
+SleepIntervalInMin=5
+ProcessDefId=44
+
+ExcelFilePath=E:\\work\\DAO_FILES\\Prime
+ExcelSuccessPath=Success
+ExcelFailPath=Error
+ExcelInputPath=Input
+ExcelInprogressPath=Inprogress
+prime_cloumn_name=ELITE_CRN,Name,address1,address2,address3,address4,city,OffTel,mobile,resitel,Card_Type,CardSerno,WI_name,entry_time
+
+cbs_Col_name=Sl_No,Request_No,Account_Number,No_of_cheque_books,Name,Authorized_person_1,Address1,Phone1,Authorized_person_2,Address2,Phone2,Authorized_person_3,Address3,Phone3,Process_Date,request_Type,Cif_Type,WI_name,entry_time
+CBSfilepath=E:\\work\\DAO_FILES\\CBS
+CbsSuccess=Success
+CbsFail=Error
+CbsInput=Input
+CbsInprogresspath=Inprogress
+
+
+fromMailID = BPMSystemAlerts@rakbanktst.ae
+toMailID = test1@rakbanktst.ae
+mailSubject = File Movement to Error folder | Digital AO
+MailStr = <html><body>Dear Concerned,<br><br>The file <#file#> moved to error folder.<br><br>Regards,<br>RAKBANK <br>* This is an automated email, please do not reply.</body></html>
+
+
+DCC_ExcelFilePath=E:\\work\\DAO_FILES\\Prime
+DCC_prime_cloumn_name=ELITE_CRN,Name,address1,address2,address3,address4,city,OffTel,mobile,resitel,Card_Type,WI_name
+DCC_CBSfilepath=E:\\work\\DAO_FILES\\CBS
+DCC_cbs_Col_name=Sl_No,Request_No,Account_Number,No_of_cheque_books,Name,Authorized_person_1,Address1,Phone1,Authorized_person_2,Address2,Phone2,Authorized_person_3,Address3,Phone3,Process_Date,request_Type,Cif_Type,WI_name

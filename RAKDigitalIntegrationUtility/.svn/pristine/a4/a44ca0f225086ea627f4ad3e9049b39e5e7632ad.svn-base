@@ -1,0 +1,39 @@
+<EE_EAI_MESSAGE>
+   <EE_EAI_HEADER>
+      <MsgFormat>NOTIFY_CARD_APPLICATION</MsgFormat>
+      <MsgVersion>0001</MsgVersion>
+      <RequestorChannelId>CAS</RequestorChannelId>
+      <RequestorUserId>RAKUSER</RequestorUserId>
+      <RequestorLanguage>E</RequestorLanguage>
+      <RequestorSecurityInfo>secure</RequestorSecurityInfo>
+      <ReturnCode>911</ReturnCode>
+      <ReturnDesc>Issuer Timed Out</ReturnDesc>
+      <MessageId>12312345323</MessageId>
+      <Extra1>REQ||SHELL.JOHN</Extra1>
+      <Extra2>YYYY-MM-DDThh:mm:ss.mmm+hh:mm</Extra2>
+   </EE_EAI_HEADER>
+   <NotifyCardAppReq>
+      <BankId>RAK</BankId>
+      <SourceCode>#RM_Code#</SourceCode>
+      <CreditShield>#Credit_Shield_Flag#</CreditShield>
+      <ApplicationNo>#Wi_Name#</ApplicationNo>
+	  <GenerateLimitBridge>Y</GenerateLimitBridge>
+      <GrossSalary>#FinalTAI#</GrossSalary>
+      <AssessedIncome>#FinalTAI#</AssessedIncome>
+      <SalaryDay>#Net_salary1_date#</SalaryDay>
+      <DebtBurdenRatio>#FinalDBR#</DebtBurdenRatio>
+      <CreditLimit>#Final_Limit#</CreditLimit>
+      <StatementCycle>#Net_salary1_date2#</StatementCycle>
+      <ApprovalLevelCode>#delegation_authority#</ApprovalLevelCode>#str_DeviationCode#
+      <BureauReferenceNo>#bureau_reference_number#</BureauReferenceNo>
+      <CreditStatus>#CREDITSTATUS#</CreditStatus>
+      <DelegationAuthority>#delegation_authority#</DelegationAuthority>
+      <SecurityChequeDetailsFlg>Y</SecurityChequeDetailsFlg>
+      <SecurityChqNo>#SecurityChqNo#</SecurityChqNo>
+      <SecuritychqBank>RAKBANK</SecuritychqBank>
+      <SecurityChqAmt>#Final_Limit#</SecurityChqAmt>#str_MurabahaDetails#
+      <CIF>#CIF#</CIF>
+      <CRN>#CRN#</CRN>
+	  <EliteCustomerNo>#ECRN#</EliteCustomerNo>
+   </NotifyCardAppReq>
+</EE_EAI_MESSAGE>

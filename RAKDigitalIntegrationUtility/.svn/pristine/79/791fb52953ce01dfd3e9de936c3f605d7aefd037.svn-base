@@ -1,0 +1,765 @@
+/*
+---------------------------------------------------------------------------------------------------------
+                  NEWGEN SOFTWARE TECHNOLOGIES LIMITED
+
+Group                   : Application - Projects
+Project/Product			: RAK BPM
+Application				: RAK BPM Utility
+Module					: RAOP Status
+File Name				: RAOPStatus.java
+Author 					: Ravindra Kumar	
+Date (DD/MM/YYYY)		: 01/06/2022
+
+---------------------------------------------------------------------------------------------------------
+                 	CHANGE HISTORY
+---------------------------------------------------------------------------------------------------------
+
+Problem No/CR No        Change Date           Changed By             Change Description
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+*/
+
+
+package com.newgen.DAO.WI_Update;
+
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.net.Socket;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.NGXmlList;
+import com.newgen.omni.jts.cmgr.XMLParser;
+import com.newgen.omni.wf.util.app.NGEjbClient;
+import com.newgen.wfdesktop.xmlapi.WFCallBroker;
+
+
+public class WI_update_done implements Runnable
+{
+
+	private static NGEjbClient ngEjbClientCIFVer;
+
+	static Map<String, String> WI_UpdareConfigParamMap= new HashMap<String, String>();
+
+
+	int socketConnectionTimeout=0;
+	int integrationWaitTime=0;
+	int sleepIntervalInMin=0;
+	@Override
+	public void run()
+	{
+		String sessionID = "";
+		String cabinetName = "";
+		String jtsIP = "";
+		String jtsPort = "";
+		String queueID = "";
+
+		try
+		{
+			DAO_WI_Update.setLogger();
+			ngEjbClientCIFVer = NGEjbClient.getSharedInstance();
+
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Connecting to Cabinet.");
+
+			int configReadStatus = readConfig();
+
+			DAO_WI_Update.DAOWIUPDATELogger.debug("configReadStatus "+configReadStatus);
+			if(configReadStatus !=0)
+			{
+				DAO_WI_Update.DAOWIUPDATELogger.error("Could not Read Config Properties [DAO_WI_Update]");
+				return;
+			}
+
+			cabinetName = CommonConnection.getCabinetName();
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Cabinet Name: " + cabinetName);
+
+			jtsIP = CommonConnection.getJTSIP();
+			DAO_WI_Update.DAOWIUPDATELogger.debug("JTSIP: " + jtsIP);
+
+			jtsPort = CommonConnection.getJTSPort();
+			DAO_WI_Update.DAOWIUPDATELogger.debug("JTSPORT: " + jtsPort);
+
+			queueID = WI_UpdareConfigParamMap.get("queueID");
+			DAO_WI_Update.DAOWIUPDATELogger.debug("QueueID: " + queueID);
+
+			socketConnectionTimeout=Integer.parseInt(WI_UpdareConfigParamMap.get("MQ_SOCKET_CONNECTION_TIMEOUT"));
+			DAO_WI_Update.DAOWIUPDATELogger.debug("SocketConnectionTimeOut: "+socketConnectionTimeout);
+
+			integrationWaitTime=Integer.parseInt(WI_UpdareConfigParamMap.get("INTEGRATION_WAIT_TIME"));
+			DAO_WI_Update.DAOWIUPDATELogger.debug("IntegrationWaitTime: "+integrationWaitTime);
+
+			sleepIntervalInMin=Integer.parseInt(WI_UpdareConfigParamMap.get("SleepIntervalInMin"));
+			DAO_WI_Update.DAOWIUPDATELogger.debug("SleepIntervalInMin: "+sleepIntervalInMin);
+
+
+			sessionID = CommonConnection.getSessionID(DAO_WI_Update.DAOWIUPDATELogger, false);
+
+			if(sessionID.trim().equalsIgnoreCase(""))
+			{
+				DAO_WI_Update.DAOWIUPDATELogger.debug("Could Not Connect to Server!");
+			}
+			else
+			{
+				DAO_WI_Update.DAOWIUPDATELogger.debug("Session ID found: " + sessionID);
+				HashMap<String, String> socketDetailsMap = socketConnectionDetails(cabinetName, jtsIP, jtsPort, sessionID);
+				while (true) {
+					DAO_WI_Update.setLogger();
+					DAO_WI_Update.DAOWIUPDATELogger.debug("iRBL CIF Verification...123.");
+					startDAO_WI_Update(cabinetName, jtsIP, jtsPort, sessionID, queueID, socketConnectionTimeout, integrationWaitTime, socketDetailsMap);
+					System.out.println("No More workitems to Process, Sleeping!");
+					Thread.sleep(sleepIntervalInMin * 60 * 1000);
+				}
+			}
+		}
+
+		catch(Exception e)
+		{
+			e.printStackTrace();
+			DAO_WI_Update.DAOWIUPDATELogger.error("Exception Occurred in DAO_WI_Update : "+e);
+			final Writer result = new StringWriter();
+			final PrintWriter printWriter = new PrintWriter(result);
+			e.printStackTrace(printWriter);
+			DAO_WI_Update.DAOWIUPDATELogger.error("Exception Occurred in DAO_WI_Update : "+result);
+		}
+	}
+
+	private int readConfig()
+	{
+		Properties p = null;
+		try {
+
+			p = new Properties();
+			p.load(new FileInputStream(new File(System.getProperty("user.dir")+ File.separator + "ConfigFiles"+ File.separator+ "DAO_WIUpdate_Config.properties")));
+
+			Enumeration<?> names = p.propertyNames();
+
+			while (names.hasMoreElements())
+			  {
+			    String name = (String) names.nextElement();
+			    WI_UpdareConfigParamMap.put(name, p.getProperty(name));
+			  }
+		    }
+		catch (Exception e)
+		{
+			return -1 ;
+		}
+		return 0;
+	}
+
+
+	private void startDAO_WI_Update(String cabinetName, String sJtsIp, String iJtsPort, String sessionId, String queueID, 
+			int socketConnectionTimeOut, int integrationWaitTime, HashMap<String, String> socketDetailsMap)
+	{
+		final String ws_name="WI_status_update";
+		
+		try
+		{
+			final HashMap<String, String> CheckGridDataMap = new HashMap<String, String>();
+			//Validate Session ID
+			sessionId  = CommonConnection.getSessionID(DAO_WI_Update.DAOWIUPDATELogger, false);
+
+			if (sessionId == null || sessionId.equalsIgnoreCase("") || sessionId.equalsIgnoreCase("null"))
+			{
+				DAO_WI_Update.DAOWIUPDATELogger.error("Could Not Get Session ID "+sessionId);
+				return;
+			}
+
+			//Fetch all Work-Items on given queueID.
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Fetching all Workitems on DAO_WI_Update queue");
+			System.out.println("Fetching all Workitems on DAO_WI_Update");
+			String fetchWorkitemListInputXML=CommonMethods.fetchWorkItemsInput(cabinetName, sessionId, queueID);
+			DAO_WI_Update.DAOWIUPDATELogger.debug("InputXML for fetchWorkList Call: "+fetchWorkitemListInputXML);
+
+			String fetchWorkitemListOutputXML= WFNGExecute(fetchWorkitemListInputXML,sJtsIp,iJtsPort,1);
+			
+			DAO_WI_Update.DAOWIUPDATELogger.debug(" DAO_WI_Update WMFetchWorkList OutputXML: "+fetchWorkitemListOutputXML);
+			
+			XMLParser xmlParserFetchWorkItemlist = new XMLParser(fetchWorkitemListOutputXML);
+			
+			String fetchWorkItemListMainCode = xmlParserFetchWorkItemlist.getValueOf("MainCode");
+			DAO_WI_Update.DAOWIUPDATELogger.debug("FetchWorkItemListMainCode: "+fetchWorkItemListMainCode);
+			
+			int fetchWorkitemListCount = Integer.parseInt(xmlParserFetchWorkItemlist.getValueOf("RetrievedCount"));
+			DAO_WI_Update.DAOWIUPDATELogger.debug("RetrievedCount for WMFetchWorkList Call: "+fetchWorkitemListCount);
+			
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Number of workitems retrieved on DAO_WI_Update: "+fetchWorkitemListCount);
+			
+			System.out.println("Number of workitems retrieved on DAO_WI_Update: "+fetchWorkitemListCount);
+			
+			if (fetchWorkItemListMainCode.trim().equals("0") && fetchWorkitemListCount > 0)
+				{
+					for(int i=0; i<fetchWorkitemListCount; i++)
+					{
+						String fetchWorkItemlistData=xmlParserFetchWorkItemlist.getNextValueOf("Instrument");
+						fetchWorkItemlistData =fetchWorkItemlistData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+	
+						DAO_WI_Update.DAOWIUPDATELogger.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: "+fetchWorkItemlistData);
+						XMLParser xmlParserfetchWorkItemData = new XMLParser(fetchWorkItemlistData);
+	
+						String processInstanceID=xmlParserfetchWorkItemData.getValueOf("ProcessInstanceId");
+						DAO_WI_Update.DAOWIUPDATELogger.debug("Current ProcessInstanceID: "+processInstanceID);
+	
+						DAO_WI_Update.DAOWIUPDATELogger.debug("Processing Workitem: "+processInstanceID);
+						System.out.println("\nProcessing Workitem: "+processInstanceID);
+	
+						String WorkItemID=xmlParserfetchWorkItemData.getValueOf("WorkItemId");
+						DAO_WI_Update.DAOWIUPDATELogger.debug("Current WorkItemID: "+WorkItemID);
+	
+						String entryDateTime=xmlParserfetchWorkItemData.getValueOf("EntryDateTime");
+						DAO_WI_Update.DAOWIUPDATELogger.debug("Current EntryDateTime: "+entryDateTime);
+	
+						String ActivityName=xmlParserfetchWorkItemData.getValueOf("ActivityName");
+						DAO_WI_Update.DAOWIUPDATELogger.debug("ActivityName: "+ActivityName);
+						
+						String ActivityID = xmlParserfetchWorkItemData.getValueOf("WorkStageId");
+						DAO_WI_Update.DAOWIUPDATELogger.debug("ActivityID: "+ActivityID);
+						String ActivityType = xmlParserfetchWorkItemData.getValueOf("ActivityType");
+						DAO_WI_Update.DAOWIUPDATELogger.debug("ActivityType: "+ActivityType);
+						String ProcessDefId = xmlParserfetchWorkItemData.getValueOf("RouteId");
+						DAO_WI_Update.DAOWIUPDATELogger.debug("ProcessDefId: "+ProcessDefId);
+						
+						String file_rec="N";
+						
+					    String DBQuery ="select wi_name,ECRN,ChequeBk_ref from ng_dao_wi_update with (nolock) where wi_name='"+ processInstanceID +"' and  status='R'";
+					    
+					    String extTabDataIPXML =CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(), CommonConnection.getSessionID(DAO_WI_Update.DAOWIUPDATELogger, false));
+					    DAO_WI_Update.DAOWIUPDATELogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+					    String extTabDataOPXML = WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+					    DAO_WI_Update.DAOWIUPDATELogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+					    // using xml parser to pass the output data in desired format 
+					    XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+					    // total values retrieved > 0 is a check
+					    int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+					    // Main code we get if the ap select call is triggered success.
+					    if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec > 0)
+				        {
+					    	file_rec="Y";
+					    	String xmlDataExtTab = xmlParserData.getNextValueOf("Record");
+				            xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+				            // replace the spcl char above.
+				            NGXmlList objWorkList = xmlParserData.createList("Records", "Record");
+				            
+				            // loop over the map to put value key pair.
+				            for (; objWorkList.hasMoreElements(true); objWorkList.skip(true))
+				            {
+				            	CheckGridDataMap.put("Workitem_Number", objWorkList.getVal("wi_name"));
+				            	CheckGridDataMap.put("ECRN", objWorkList.getVal("ECRN"));
+				            	CheckGridDataMap.put("ChequeBk_ref", objWorkList.getVal("ChequeBk_ref"));
+				            }
+				        }				    	    
+					    String DBQuery_1 ="select account_no,is_prime_req,is_cbs_req,event from NG_DAO_EXTTABLE with(nolock) where wi_name='"+ processInstanceID +"'";
+					    
+					    String extTabDataIPXML_1 =CommonMethods.apSelectWithColumnNames(DBQuery_1, CommonConnection.getCabinetName(), CommonConnection.getSessionID(DAO_WI_Update.DAOWIUPDATELogger, false));
+					    DAO_WI_Update.DAOWIUPDATELogger.debug("extTabDataIPXML: " + extTabDataIPXML_1);
+					    String extTabDataOPXML_1 = WFNGExecute(extTabDataIPXML_1, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+					    DAO_WI_Update.DAOWIUPDATELogger.debug("extTabDataOPXML: " + extTabDataOPXML_1);
+					    
+					    XMLParser xmlParserData_1 = new XMLParser(extTabDataOPXML_1);
+					    int iTotalrec_1 = Integer.parseInt(xmlParserData_1.getValueOf("TotalRetrieved"));
+					    
+					    if (xmlParserData_1.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec_1 > 0)
+				        {
+					    	String xmlDataExtTab = xmlParserData_1.getNextValueOf("Record");
+				            xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+				            NGXmlList objWorkList = xmlParserData_1.createList("Records", "Record");
+				            
+				            for (; objWorkList.hasMoreElements(true); objWorkList.skip(true))
+				            {
+				            	CheckGridDataMap.put("is_prime_req", objWorkList.getVal("is_prime_req"));
+				            	CheckGridDataMap.put("is_cbs_req", objWorkList.getVal("is_cbs_req"));
+				            	CheckGridDataMap.put("event", objWorkList.getVal("event"));
+				            	CheckGridDataMap.put("account_no", objWorkList.getVal("account_no"));
+				            }
+				        }
+					    
+					    String DBQuery_2 ="select EntryDATETIME from WFINSTRUMENTTABLE  with(nolock) where ProcessInstanceID ='"+ processInstanceID +"' and ActivityName = 'WI_status_update'";
+					    
+					    String extTabDataIPXML_2 =CommonMethods.apSelectWithColumnNames(DBQuery_2, CommonConnection.getCabinetName(), CommonConnection.getSessionID(DAO_WI_Update.DAOWIUPDATELogger, false));
+					    DAO_WI_Update.DAOWIUPDATELogger.debug("extTabDataIPXML: " + extTabDataIPXML_2);
+					    String extTabDataOPXML_2 = WFNGExecute(extTabDataIPXML_2, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+					    DAO_WI_Update.DAOWIUPDATELogger.debug("extTabDataOPXML: " + extTabDataOPXML_2);
+					    
+					    XMLParser xmlParserData_2 = new XMLParser(extTabDataOPXML_2);
+					    int iTotalrec_2 = Integer.parseInt(xmlParserData_2.getValueOf("TotalRetrieved"));
+					    
+					    if (xmlParserData_2.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec_2 > 0)
+				        {
+					    	String xmlDataExtTab = xmlParserData_2.getNextValueOf("Record");
+				            xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+				            NGXmlList objWorkList = xmlParserData_2.createList("Records", "Record");
+				    
+				            for (; objWorkList.hasMoreElements(true); objWorkList.skip(true))
+				            {
+				            	CheckGridDataMap.put("EntryDATETIME", objWorkList.getVal("EntryDATETIME"));
+				            }
+				        }
+					    
+					    String prime = CheckGridDataMap.get("is_prime_req");
+				    	String cbs = CheckGridDataMap.get("is_cbs_req");
+				    	String prime_no = CheckGridDataMap.get("ECRN");
+				    	String cbs_no = CheckGridDataMap.get("ChequeBk_ref");
+				    	String decisionValue=CheckGridDataMap.get("event");
+				    	String EntryDATETIME = CheckGridDataMap.get("EntryDATETIME");
+				    	String account_no = null;
+				    	if(CheckGridDataMap.containsKey("account_no")){
+				    		account_no = CheckGridDataMap.get("account_no");	
+				    	}
+			    	
+				    	DAO_WI_Update.DAOWIUPDATELogger.debug("file_rec "+file_rec);
+				    	DAO_WI_Update.DAOWIUPDATELogger.debug("prime "+prime);
+				    	DAO_WI_Update.DAOWIUPDATELogger.debug("cbs "+cbs);
+				    	DAO_WI_Update.DAOWIUPDATELogger.debug("prime_no "+prime_no);
+				    	DAO_WI_Update.DAOWIUPDATELogger.debug("cbs_no "+cbs_no);
+				    	DAO_WI_Update.DAOWIUPDATELogger.debug("decisionValue "+decisionValue);
+						
+					    if(file_rec.equalsIgnoreCase("N"))
+					    {
+					    	DAO_WI_Update.DAOWIUPDATELogger.debug("Inside N case");
+					    	
+					    	if(prime.equalsIgnoreCase("N") && cbs.equalsIgnoreCase("N") && account_no !=null)
+					    	{
+					    		DAO_WI_Update.DAOWIUPDATELogger.debug("Inside both prime cbs N case");
+					    		
+					    		doneworkitem(cabinetName,sJtsIp,iJtsPort,sessionId,queueID,
+						    	socketConnectionTimeOut,integrationWaitTime,
+						    	socketDetailsMap,processInstanceID,WorkItemID,ActivityID,
+						    	ProcessDefId,ActivityType,decisionValue,ActivityName,EntryDATETIME);
+					    	}
+					    }
+					    else if(file_rec.equalsIgnoreCase("Y"))
+					    {
+					    	DAO_WI_Update.DAOWIUPDATELogger.debug("Inside Y case");
+					    	
+					    	if(prime.equalsIgnoreCase("Y") && cbs.equalsIgnoreCase("N")){
+					    		if(prime_no!=null && !"".equalsIgnoreCase(prime_no)){
+					    			DAO_WI_Update.DAOWIUPDATELogger.debug("Inside prime Y case");
+
+					    			doneworkitem(cabinetName,sJtsIp,iJtsPort,sessionId,queueID,
+					    			socketConnectionTimeOut,integrationWaitTime,
+					    			socketDetailsMap,processInstanceID,WorkItemID,ActivityID,
+					    			ProcessDefId,ActivityType,decisionValue,ActivityName,EntryDATETIME);
+					    		}
+					    	}
+					    	else if(prime.equalsIgnoreCase("N") && cbs.equalsIgnoreCase("Y")){
+					    		if(cbs_no!=null && !"".equalsIgnoreCase(cbs_no)){
+					    			DAO_WI_Update.DAOWIUPDATELogger.debug("Inside cbs_no Y case");
+					    			
+					    			doneworkitem(cabinetName,sJtsIp,iJtsPort,sessionId,queueID,
+							    	socketConnectionTimeOut,integrationWaitTime,
+							    	socketDetailsMap,processInstanceID,WorkItemID,ActivityID,
+							    	ProcessDefId,ActivityType,decisionValue,ActivityName,EntryDATETIME);
+					    		}
+					    	}
+					    	else if(prime.equalsIgnoreCase("Y") && cbs.equalsIgnoreCase("Y"))
+					    	{
+					    		if((prime_no!=null && !"".equalsIgnoreCase(prime_no)) && (cbs_no!=null && !"".equalsIgnoreCase(cbs_no))){
+					    			DAO_WI_Update.DAOWIUPDATELogger.debug("Inside cbs & prime  Y case");
+					    			
+					    			doneworkitem(cabinetName,sJtsIp,iJtsPort,sessionId,queueID,
+							    	socketConnectionTimeOut,integrationWaitTime,
+							    	socketDetailsMap,processInstanceID,WorkItemID,ActivityID,
+							    	ProcessDefId,ActivityType,decisionValue,ActivityName,EntryDATETIME);
+					    	}
+					    }
+					 }
+				}
+			}
+		}
+			catch (Exception e)
+		{
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Exception DAO_WI_Update : "+e.getMessage());
+		}
+	}
+
+	private HashMap<String, String> socketConnectionDetails(String cabinetName, String sJtsIp, String iJtsPort, String sessionID) {
+		HashMap<String, String> socketDetailsMap = new HashMap<String, String>();
+
+		try {
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Fetching Socket Connection Details.");
+			System.out.println("Fetching Socket Connection Details.");
+
+			String socketDetailsQuery = "SELECT SocketServerIP,SocketServerPort FROM NG_BPM_MQ_TABLE with (nolock) where ProcessName = 'DigitalAO' and CallingSource = 'Utility'";
+
+			String socketDetailsInputXML = CommonMethods.apSelectWithColumnNames(socketDetailsQuery, cabinetName, sessionID);
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Socket Details APSelect InputXML: " + socketDetailsInputXML);
+
+			String socketDetailsOutputXML = WFNGExecute(socketDetailsInputXML, sJtsIp, iJtsPort, 1);
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Socket Details APSelect OutputXML: " + socketDetailsOutputXML);
+
+			XMLParser xmlParserSocketDetails = new XMLParser(socketDetailsOutputXML);
+			String socketDetailsMainCode = xmlParserSocketDetails.getValueOf("MainCode");
+			DAO_WI_Update.DAOWIUPDATELogger.debug("SocketDetailsMainCode: " + socketDetailsMainCode);
+
+			int socketDetailsTotalRecords = Integer.parseInt(xmlParserSocketDetails.getValueOf("TotalRetrieved"));
+			DAO_WI_Update.DAOWIUPDATELogger.debug("SocketDetailsTotalRecords: " + socketDetailsTotalRecords);
+
+			if (socketDetailsMainCode.equalsIgnoreCase("0") && socketDetailsTotalRecords > 0) {
+				String xmlDataSocketDetails = xmlParserSocketDetails.getNextValueOf("Record");
+				xmlDataSocketDetails = xmlDataSocketDetails.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+
+				XMLParser xmlParserSocketDetailsRecord = new XMLParser(xmlDataSocketDetails);
+
+				String socketServerIP = xmlParserSocketDetailsRecord.getValueOf("SocketServerIP");
+				DAO_WI_Update.DAOWIUPDATELogger.debug("SocketServerIP: " + socketServerIP);
+				socketDetailsMap.put("SocketServerIP", socketServerIP);
+
+				String socketServerPort = xmlParserSocketDetailsRecord.getValueOf("SocketServerPort");
+				DAO_WI_Update.DAOWIUPDATELogger.debug("SocketServerPort " + socketServerPort);
+				socketDetailsMap.put("SocketServerPort", socketServerPort);
+
+				DAO_WI_Update.DAOWIUPDATELogger.debug("SocketServer Details found.");
+				System.out.println("SocketServer Details found.");
+			}
+		} catch (Exception e) {
+			DAO_WI_Update.DAOWIUPDATELogger
+					.debug("Exception in getting Socket Connection Details: " + e.getMessage());
+			System.out.println("Exception in getting Socket Connection Details: " + e.getMessage());
+		}
+
+		return socketDetailsMap;
+	}
+
+	protected static String WFNGExecute(String ipXML, String jtsServerIP, String serverPort, int flag)
+			throws IOException, Exception {
+		DAO_WI_Update.DAOWIUPDATELogger.debug("In WF NG Execute : " + serverPort);
+		try {
+			if (serverPort.startsWith("33"))
+				return WFCallBroker.execute(ipXML, jtsServerIP, Integer.parseInt(serverPort), 1);
+			else
+				return ngEjbClientCIFVer.makeCall(jtsServerIP, serverPort, "WebSphere", ipXML);
+		} catch (Exception e) {
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Exception Occured in WF NG Execute : " + e.getMessage());
+			e.printStackTrace();
+			return "Error";
+		}
+	}
+	
+	String socketConnection(String cabinetName, String username, String sessionId, String sJtsIp, String iJtsPort, String processInstanceID, String ws_name,
+			int connection_timeout, int integrationWaitTime,HashMap<String, String> socketDetailsMap, StringBuilder sInputXML)
+	{
+
+		String socketServerIP;
+		int socketServerPort;
+		Socket socket = null;
+		OutputStream out = null;
+		InputStream socketInputStream = null;
+		DataOutputStream dout = null;
+		DataInputStream din = null;
+		String outputResponse = null;
+		String inputRequest = null;
+		String inputMessageID = null;
+
+		try{
+			
+			DAO_WI_Update.DAOWIUPDATELogger.debug("userName "+ username);
+			DAO_WI_Update.DAOWIUPDATELogger.debug("SessionId "+ sessionId);
+
+			socketServerIP=socketDetailsMap.get("SocketServerIP");
+			DAO_WI_Update.DAOWIUPDATELogger.debug("SocketServerIP "+ socketServerIP);
+			socketServerPort=Integer.parseInt(socketDetailsMap.get("SocketServerPort"));
+			DAO_WI_Update.DAOWIUPDATELogger.debug("SocketServerPort "+ socketServerPort);
+
+	   		if (!("".equalsIgnoreCase(socketServerIP) && socketServerIP == null && socketServerPort==0)){
+	   			
+    			socket = new Socket(socketServerIP, socketServerPort);
+    			socket.setSoTimeout(connection_timeout*1000);
+    			out = socket.getOutputStream();
+    			socketInputStream = socket.getInputStream();
+    			dout = new DataOutputStream(out);
+    			din = new DataInputStream(socketInputStream);
+    			DAO_WI_Update.DAOWIUPDATELogger.debug("Dout " + dout);
+    			DAO_WI_Update.DAOWIUPDATELogger.debug("Din " + din);
+
+    			outputResponse = "";
+
+    			inputRequest = getRequestXML( cabinetName,sessionId ,processInstanceID, ws_name, username, sInputXML);
+
+    			if (inputRequest != null && inputRequest.length() > 0){
+    				
+    				int inputRequestLen = inputRequest.getBytes("UTF-16LE").length;
+    				DAO_WI_Update.DAOWIUPDATELogger.debug("RequestLen: "+inputRequestLen + "");
+    				inputRequest = inputRequestLen + "##8##;" + inputRequest;
+    				DAO_WI_Update.DAOWIUPDATELogger.debug("InputRequest"+"Input Request Bytes : "+ inputRequest.getBytes("UTF-16LE"));
+    				dout.write(inputRequest.getBytes("UTF-16LE"));dout.flush();
+    			}
+    			byte[] readBuffer = new byte[500];
+    			int num = din.read(readBuffer);
+    			if (num > 0){
+
+    				byte[] arrayBytes = new byte[num];
+    				System.arraycopy(readBuffer, 0, arrayBytes, 0, num);
+    				outputResponse = outputResponse+ new String(arrayBytes, "UTF-16LE");
+					inputMessageID = outputResponse;
+    				DAO_WI_Update.DAOWIUPDATELogger.debug("OutputResponse: "+outputResponse);
+
+    				if(!"".equalsIgnoreCase(outputResponse))
+    					outputResponse = getResponseXML(cabinetName,sJtsIp,iJtsPort,sessionId, processInstanceID,outputResponse,integrationWaitTime );
+
+    				if(outputResponse.contains("&lt;"))
+    				{
+    					outputResponse=outputResponse.replaceAll("&lt;", "<");
+    					outputResponse=outputResponse.replaceAll("&gt;", ">");
+    				}
+    			}
+    			socket.close();
+
+				outputResponse = outputResponse.replaceAll("</MessageId>","</MessageId>/n<InputMessageId>"+inputMessageID+"</InputMessageId>");
+				return outputResponse;
+    	 		}
+    		else
+    		{
+    			DAO_WI_Update.DAOWIUPDATELogger.debug("SocketServerIp and SocketServerPort is not maintained "+"");
+    			DAO_WI_Update.DAOWIUPDATELogger.debug("SocketServerIp is not maintained "+	socketServerIP);
+    			DAO_WI_Update.DAOWIUPDATELogger.debug(" SocketServerPort is not maintained "+	socketServerPort);
+    			return "Socket Details not maintained";
+    		}
+		}
+
+		catch (Exception e)
+		{
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Exception Occured Mq_connection_CC"+e.getStackTrace());
+			return "";
+		}
+		finally
+		{
+			try
+			{
+				if(out != null)
+				{
+					out.close();
+					out=null;
+				}
+				if(socketInputStream != null)
+				{
+					socketInputStream.close();
+					socketInputStream=null;
+				}
+				if(dout != null)
+				{
+					dout.close();
+					dout=null;
+				}
+				if(din != null)
+				{
+					din.close();
+					din=null;
+				}
+				if(socket != null)
+				{
+					if(!socket.isClosed())
+						socket.close();
+					socket=null;
+				}
+			}
+			catch(Exception e){
+				
+				DAO_WI_Update.DAOWIUPDATELogger.debug("Final Exception Occured Mq_connection_CC"+e.getStackTrace());
+			}
+		}
+
+	}
+	private String getResponseXML(String cabinetName,String sJtsIp,String iJtsPort, String sessionId, String processInstanceID,String message_ID, int integrationWaitTime)
+	{
+		String outputResponseXML="";
+		try
+		{
+			String QueryString = "select OUTPUT_XML from NG_DAO_XMLLOG_HISTORY with (nolock) where MESSAGE_ID ='"+message_ID+"' and WI_NAME = '"+processInstanceID+"'";
+
+			String responseInputXML =CommonMethods.apSelectWithColumnNames(QueryString, cabinetName, sessionId);
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Response APSelect InputXML: "+responseInputXML);
+
+			int Loop_count=0;
+			do
+			{
+				String responseOutputXML=CommonMethods.WFNGExecute(responseInputXML,sJtsIp,iJtsPort,1);
+				DAO_WI_Update.DAOWIUPDATELogger.debug("Response APSelect OutputXML: "+responseOutputXML);
+
+			    XMLParser xmlParserSocketDetails= new XMLParser(responseOutputXML);
+			    String responseMainCode = xmlParserSocketDetails.getValueOf("MainCode");
+			    DAO_WI_Update.DAOWIUPDATELogger.debug("ResponseMainCode: "+responseMainCode);
+
+
+
+			    int responseTotalRecords = Integer.parseInt(xmlParserSocketDetails.getValueOf("TotalRetrieved"));
+			    DAO_WI_Update.DAOWIUPDATELogger.debug("ResponseTotalRecords: "+responseTotalRecords);
+
+			    if (responseMainCode.equals("0") && responseTotalRecords > 0)
+				{
+
+					String responseXMLData=xmlParserSocketDetails.getNextValueOf("Record");
+					responseXMLData =responseXMLData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+	        		XMLParser xmlParserResponseXMLData = new XMLParser(responseXMLData);
+	        		//DAONotifyAPPLog.DAONotifyAPPLogger.debug("ResponseXMLData: "+responseXMLData);
+
+	        		outputResponseXML=xmlParserResponseXMLData.getValueOf("OUTPUT_XML");
+	        		//DAONotifyAPPLog.DAONotifyAPPLogger.debug("OutputResponseXML: "+outputResponseXML);
+
+	        		if("".equalsIgnoreCase(outputResponseXML)){
+	        			outputResponseXML="Error";
+	    			}
+	        		break;
+				}
+			    Loop_count++;
+			    Thread.sleep(1000);
+			}
+			while(Loop_count<integrationWaitTime);
+			DAO_WI_Update.DAOWIUPDATELogger.debug("integrationWaitTime: "+integrationWaitTime);
+
+		}
+		catch(Exception e)
+		{
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Exception occurred in outputResponseXML" + e.getMessage());
+			outputResponseXML="Error";
+		}
+
+		return outputResponseXML;
+
+	}
+	 public void doneworkitem(String cabinetName, String sJtsIp, String iJtsPort, String sessionId, String queueID, 
+				int socketConnectionTimeOut, int integrationWaitTime, HashMap<String, String> socketDetailsMap,String processInstanceID,String WorkItemID,String ActivityID,
+				String ProcessDefId,String ActivityType,String decisionValue, String ActivityName,String EntryDATETIME)
+	  {
+		 try{
+			//Lock Workitem.
+			String getWorkItemInputXML = CommonMethods.getWorkItemInput(cabinetName, sessionId, processInstanceID, WorkItemID);
+			String getWorkItemOutputXml = WFNGExecute(getWorkItemInputXML,sJtsIp,iJtsPort,1);
+			DAO_WI_Update.DAOWIUPDATELogger.debug("Output XML For WmgetWorkItemCall: " + getWorkItemOutputXml);
+
+			XMLParser xmlParserGetWorkItem = new XMLParser(getWorkItemOutputXml);
+			String getWorkItemMainCode = xmlParserGetWorkItem.getValueOf("MainCode");
+			DAO_WI_Update.DAOWIUPDATELogger.debug("WmgetWorkItemCall Maincode:  "+ getWorkItemMainCode);
+
+			if (getWorkItemMainCode.trim().equals("0"))
+			{
+				DAO_WI_Update.DAOWIUPDATELogger.debug("WMgetWorkItemCall Successful: "+getWorkItemMainCode);
+
+				//String assignWorkitemAttributeInputXML=CommonMethods.assignWorkitemAttributeInput(cabinetName, sessionId,processInstanceID,WorkItemID,attributesTag);
+				
+				String assignWorkitemAttributeInputXML = "<?xml version=\"1.0\"?><WMAssignWorkItemAttributes_Input>"
+						+ "<Option>WMAssignWorkItemAttributes</Option>"
+						+ "<EngineName>"+cabinetName+"</EngineName>"
+						+ "<SessionId>"+sessionId+"</SessionId>"
+						+ "<ProcessInstanceId>"+processInstanceID+"</ProcessInstanceId>"
+						+ "<WorkItemId>"+WorkItemID+"</WorkItemId>"
+						+ "<ActivityId>"+ActivityID+"</ActivityId>"
+						+ "<ProcessDefId>"+ProcessDefId+"</ProcessDefId>"
+						+ "<LastModifiedTime></LastModifiedTime>"
+						+ "<ActivityType>"+ActivityType+"</ActivityType>"
+						+ "<complete>D</complete>"
+						+ "<AuditStatus></AuditStatus>"
+						+ "<Comments></Comments>"
+						+ "<UserDefVarFlag>Y</UserDefVarFlag>"
+						+ "<Attributes></Attributes>"
+						+ "</WMAssignWorkItemAttributes_Input>";
+				
+				DAO_WI_Update.DAOWIUPDATELogger.debug("InputXML for assignWorkitemAttribute Call Notify: "+assignWorkitemAttributeInputXML);
+
+				String assignWorkitemAttributeOutputXML=WFNGExecute(assignWorkitemAttributeInputXML,sJtsIp,
+						iJtsPort,1);
+				
+				DAO_WI_Update.DAOWIUPDATELogger.debug("OutputXML for assignWorkitemAttribute Call Notify: "+assignWorkitemAttributeOutputXML);
+				
+				XMLParser xmlParserWorkitemAttribute = new XMLParser(assignWorkitemAttributeOutputXML);
+				String assignWorkitemAttributeMainCode = xmlParserWorkitemAttribute.getValueOf("MainCode");
+				DAO_WI_Update.DAOWIUPDATELogger.debug("AssignWorkitemAttribute MainCode: "+assignWorkitemAttributeMainCode);
+
+				if(assignWorkitemAttributeMainCode.trim().equalsIgnoreCase("0"))
+				{
+					DAO_WI_Update.DAOWIUPDATELogger.debug("AssignWorkitemAttribute Successful: "+assignWorkitemAttributeMainCode);
+					System.out.println(processInstanceID + "Complete Succesfully with status "+decisionValue);
+					DAO_WI_Update.DAOWIUPDATELogger.debug("WorkItem moved to next Workstep.");
+				}
+				else
+				{
+					DAO_WI_Update.DAOWIUPDATELogger.debug("decisionValue : "+decisionValue);
+				}
+				
+				DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				
+				Date current_date = new Date();
+				String formattedEntryDatetime=dateFormat.format(current_date);
+				DAO_WI_Update.DAOWIUPDATELogger.debug("FormattedEntryDatetime: "+formattedEntryDatetime);
+				
+				// parse to change and store and reflect as txt box on front end.
+				Date d1 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(EntryDATETIME);
+				String entrydatetime_format = dateFormat.format(d1);
+				DAO_WI_Update.DAOWIUPDATELogger.debug("EntryDATETIME: "+entrydatetime_format);
+
+				String columnNames="wi_name,decision_date_time,workstep,user_name,Decision,Remarks,entry_date_time";
+				String columnValues="'"+processInstanceID+"','"+formattedEntryDatetime+"','"+ActivityName+"','"
+				+CommonConnection.getUsername()+"','"+decisionValue+"','','"+entrydatetime_format+"'";
+		
+				String apInsertInputXML=CommonMethods.apInsert(cabinetName, sessionId, columnNames, columnValues,"NG_DAO_GR_DECISION_HISTORY");
+				DAO_WI_Update.DAOWIUPDATELogger.debug("APInsertInputXML: "+apInsertInputXML);
+
+				String apInsertOutputXML = WFNGExecute(apInsertInputXML,sJtsIp,iJtsPort,1);
+				DAO_WI_Update.DAOWIUPDATELogger.debug("APInsertOutputXML: "+ apInsertInputXML);
+
+				XMLParser xmlParserAPInsert = new XMLParser(apInsertOutputXML);
+				String apInsertMaincode = xmlParserAPInsert.getValueOf("MainCode");
+				DAO_WI_Update.DAOWIUPDATELogger.debug("Status of apInsertMaincode  "+ apInsertMaincode);
+
+				DAO_WI_Update.DAOWIUPDATELogger.debug("Completed On "+ ActivityName);
+
+
+				if(apInsertMaincode.equalsIgnoreCase("0"))
+				{
+					DAO_WI_Update.DAOWIUPDATELogger.debug("ApInsert successful: "+apInsertMaincode);
+					DAO_WI_Update.DAOWIUPDATELogger.debug("Inserted in WiHistory table successfully.");
+				}
+				else
+				{
+					DAO_WI_Update.DAOWIUPDATELogger.debug("ApInsert failed: "+apInsertMaincode);
+				}
+				
+			}
+			else
+			{
+				getWorkItemMainCode="";
+				DAO_WI_Update.DAOWIUPDATELogger.debug("WmgetWorkItem failed: "+getWorkItemMainCode);
+			}
+		 }
+		 catch(Exception e)
+		 {
+			 DAO_WI_Update.DAOWIUPDATELogger.debug("WmgetWorkItem Exception: "+e.getMessage());
+		 }
+		   }
+	
+	private String getRequestXML(String cabinetName, String sessionId,
+			String processInstanceID, String ws_name, String userName, StringBuilder sInputXML)
+	{
+		StringBuffer strBuff = new StringBuffer();
+		strBuff.append("<APMQPUTGET_Input>");
+		strBuff.append("<SessionId>" + sessionId + "</SessionId>");
+		strBuff.append("<EngineName>" + cabinetName + "</EngineName>");
+		strBuff.append("<XMLHISTORY_TABLENAME>NG_DAO_XMLLOG_HISTORY</XMLHISTORY_TABLENAME>");
+		strBuff.append("<WI_NAME>" + processInstanceID + "</WI_NAME>");
+		strBuff.append("<WS_NAME>" + ws_name + "</WS_NAME>");
+		strBuff.append("<USER_NAME>" + userName + "</USER_NAME>");
+		strBuff.append("<MQ_REQUEST_XML>");
+		strBuff.append(sInputXML);
+		strBuff.append("</MQ_REQUEST_XML>");
+		strBuff.append("</APMQPUTGET_Input>");
+		DAO_WI_Update.DAOWIUPDATELogger.debug("GetRequestXML: "+ strBuff.toString());
+		return strBuff.toString();
+	}
+}
+
+
+

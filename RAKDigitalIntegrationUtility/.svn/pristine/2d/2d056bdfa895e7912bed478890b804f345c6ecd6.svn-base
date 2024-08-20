@@ -1,0 +1,762 @@
+package com.newgen.DCC.CAMGenCIFUpdate;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.StringReader;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.iforms.xmlapi.IFormXmlResponse;
+import com.newgen.omni.jts.cmgr.NGXmlList;
+import com.newgen.omni.jts.cmgr.XMLParser;
+import com.newgen.omni.wf.util.app.NGEjbClient;
+
+import ISPack.CPISDocumentTxn;
+import ISPack.ISUtil.JPDBRecoverDocData;
+import ISPack.ISUtil.JPISException;
+import ISPack.ISUtil.JPISIsIndex;
+
+public class Digital_CC_GenCAMReport implements Runnable{
+
+// code by deepanshu for cam report on 08/09
+	
+	private static NGEjbClient ngEjbClient;
+	
+	static Map<String, String> configParamMap = new HashMap<String, String>();
+
+	private String EXT_TABLE = "NG_DCC_EXTTABLE";
+	private static Map<String, String> mainPropMap= new HashMap<String, String>();
+	
+	
+
+	public void run()
+	{
+		String sessionID = "";
+		String cabinetName = "";
+		String jtsIP = "";
+		String jtsPort = "";
+		String queueID = "";
+		String UserName = "";
+		int socketConnectionTimeout=0;
+		int integrationWaitTime=0;
+		int sleepIntervalInMin=0;
+		int TrialTime = 0;
+		String RouteAll = "";
+		int ErrorCount = 0;
+		try
+		{
+			
+			Digital_CCLog.setLogger();
+			
+			Digital_CCLog.Digital_CC.debug("Inside try Catch ...");
+			ngEjbClient = NGEjbClient.getSharedInstance();
+
+			Digital_CCLog.Digital_CC.debug("Connecting to Cabinet.");
+
+			int configReadStatus = readConfig();
+
+			Digital_CCLog.Digital_CC.debug("configReadStatus "+configReadStatus);
+			if(configReadStatus !=0)
+			{
+				Digital_CCLog.Digital_CC.error("Could not Read Config Properties");
+				return;
+			}
+
+			cabinetName = CommonConnection.getCabinetName();
+			Digital_CCLog.Digital_CC.debug("Cabinet Name: " + cabinetName);
+
+			jtsIP = CommonConnection.getJTSIP();
+			Digital_CCLog.Digital_CC.debug("JTSIP: " + jtsIP);
+
+			jtsPort = CommonConnection.getJTSPort();
+			Digital_CCLog.Digital_CC.debug("JTSPORT: " + jtsPort);
+
+			queueID = configParamMap.get("queueID");
+			Digital_CCLog.Digital_CC.debug("QueueID: " + queueID);
+			
+			UserName = configParamMap.get("UserName");
+			Digital_CCLog.Digital_CC.debug("UserName: " + UserName);
+
+			socketConnectionTimeout=Integer.parseInt(configParamMap.get("MQ_SOCKET_CONNECTION_TIMEOUT"));
+			Digital_CCLog.Digital_CC.debug("SocketConnectionTimeOut: "+socketConnectionTimeout);
+
+			integrationWaitTime=Integer.parseInt(configParamMap.get("INTEGRATION_WAIT_TIME"));
+			Digital_CCLog.Digital_CC.debug("IntegrationWaitTime: "+integrationWaitTime);
+
+			sleepIntervalInMin=Integer.parseInt(configParamMap.get("SleepIntervalInMin"));
+			Digital_CCLog.Digital_CC.debug("SleepIntervalInMin: "+sleepIntervalInMin);
+			
+			TrialTime=Integer.parseInt(configParamMap.get("TrialTime"));
+			Digital_CCLog.Digital_CC.debug("TrialTime: "+TrialTime);
+			
+			RouteAll = configParamMap.get("RouteAll");
+			Digital_CCLog.Digital_CC.debug("RouteAll: "+RouteAll);
+			
+			String ErrorCountStr = configParamMap.get("ErrorCount") == null ? "0" : configParamMap.get("ErrorCount");
+			ErrorCount=Integer.parseInt(ErrorCountStr);
+			Digital_CCLog.Digital_CC.debug("ErrorCount: "+ErrorCount);
+			
+			
+			// error remove needed
+			sessionID = CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false); // need to be clearify this log 
+
+			if(sessionID.trim().equalsIgnoreCase(""))
+			{
+				Digital_CCLog.Digital_CC.debug("Could Not Connect to Server!");
+			}
+			else
+			{
+				HashMap<String, String> socketDetailsMap = CommonMethods.socketConnectionDetails(cabinetName, jtsIP, jtsPort, sessionID);
+				while (true) {
+					Digital_CCLog.Digital_CC.debug("Session ID found: " + sessionID);
+					Digital_CCLog.setLogger();
+					
+					//method cll here 
+					/** TODO  change method name **/
+					startDCCCamReportutility(cabinetName, UserName, jtsIP, jtsPort, sessionID, queueID, socketConnectionTimeout, integrationWaitTime, socketDetailsMap, TrialTime, RouteAll,
+					ErrorCount);
+					
+					Thread.sleep(sleepIntervalInMin*60*1000);
+				}
+			}
+		}
+		catch(Exception e)
+		{
+			// watch here
+			Digital_CCLog.Digital_CC.error("Exception Occurred in DCC  : " , e);
+		
+		}
+	}
+	
+	// method define here 
+	private void startDCCCamReportutility(String cabinetName, String UserName, String sJtsIp, String iJtsPort, String sessionId, String queueID, 
+			int socketConnectionTimeOut, int integrationWaitTime, HashMap<String, String> socketDetailsMap, int trialTime, String routeAll, int errorCount)
+	{
+		final String ws_name="Digital_CC_Sys_CAMGen_UpCIF"; // write workstep name 
+		
+		try
+		{
+			//Validate Session ID
+			// error here for loger type 
+			sessionId  = CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false);
+			
+			
+			if(sessionId==null || sessionId.equalsIgnoreCase("") || sessionId.equalsIgnoreCase("null"))
+			{
+				Digital_CCLog.Digital_CC.debug("Could Not Get Session ID "+sessionId);
+				return;
+			}
+
+			//Fetch all Work-Items on given queueID.
+			Digital_CCLog.Digital_CC.debug("Fetching all Workitems on System_Error queue");
+			System.out.println("Fetching all Workitems on System_Error queue");
+			
+			String fetchWorkitemListInputXML=CommonMethods.fetchWorkItemsInput(cabinetName, sessionId, queueID);
+			Digital_CCLog.Digital_CC.debug("InputXML for fetchWorkList Call: "+fetchWorkitemListInputXML);
+
+			String fetchWorkitemListOutputXML= CommonMethods.WFNGExecute(fetchWorkitemListInputXML,sJtsIp,iJtsPort,1);
+			Digital_CCLog.Digital_CC.debug("WMFetchWorkList OutputXML: "+fetchWorkitemListOutputXML);
+
+			XMLParser xmlParserFetchWorkItemlist = new XMLParser(fetchWorkitemListOutputXML);
+
+			String fetchWorkItemListMainCode = xmlParserFetchWorkItemlist.getValueOf("MainCode");
+			Digital_CCLog.Digital_CC.debug("FetchWorkItemListMainCode: "+fetchWorkItemListMainCode);
+
+			int fetchWorkitemListCount = Integer.parseInt(xmlParserFetchWorkItemlist.getValueOf("RetrievedCount"));
+			Digital_CCLog.Digital_CC.debug("RetrievedCount for WMFetchWorkList Call: "+fetchWorkitemListCount);
+			Digital_CCLog.Digital_CC.debug("Number of workitems retrieved on System_Error: "+fetchWorkitemListCount);
+			System.out.println("Number of workitems retrieved on System_Error: "+fetchWorkitemListCount);
+
+			if (fetchWorkItemListMainCode.trim().equals("0") && fetchWorkitemListCount >0)
+			{
+				for(int i=0; i<fetchWorkitemListCount; i++)
+				{
+					String fetchWorkItemlistData=xmlParserFetchWorkItemlist.getNextValueOf("Instrument");
+					fetchWorkItemlistData =fetchWorkItemlistData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+					Digital_CCLog.Digital_CC.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: "+fetchWorkItemlistData);
+					XMLParser xmlParserfetchWorkItemData = new XMLParser(fetchWorkItemlistData);
+
+					String processInstanceID=xmlParserfetchWorkItemData.getValueOf("ProcessInstanceId");
+					Digital_CCLog.Digital_CC.debug("Current ProcessInstanceID: "+processInstanceID);
+
+					Digital_CCLog.Digital_CC.debug("Processing Workitem: "+processInstanceID);
+					System.out.println("\nProcessing Workitem: "+processInstanceID);
+
+					String WorkItemID=xmlParserfetchWorkItemData.getValueOf("WorkItemId");
+					Digital_CCLog.Digital_CC.debug("Current WorkItemID: "+WorkItemID);
+
+					String entryDateTime=xmlParserfetchWorkItemData.getValueOf("EntryDateTime");
+					Digital_CCLog.Digital_CC.debug("Current EntryDateTime: "+entryDateTime);
+
+					String ActivityID = xmlParserfetchWorkItemData.getValueOf("WorkStageId");
+					Digital_CCLog.Digital_CC.debug("ActivityID: "+ActivityID);
+
+					String ActivityType = xmlParserfetchWorkItemData.getValueOf("ActivityType");
+					Digital_CCLog.Digital_CC.debug("ActivityType: "+ActivityType);
+
+					String ProcessDefId = xmlParserfetchWorkItemData.getValueOf("RouteId");
+					Digital_CCLog.Digital_CC.debug("ProcessDefId: "+ProcessDefId);
+					
+					// change this query 
+					//String DBQuery = "SELECT entry_date_time, prev_error_ws, error_count FROM NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+			        String DBQuery = "SELECT Is_CAM_generated,CIF,Is_STP FROM NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+			        
+			        String extTabDataINPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(), CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false));
+			        Digital_CCLog.Digital_CC.debug("extTabDataIPXML: " + extTabDataINPXML);
+			        String extTabDataOUPXML = CommonMethods.WFNGExecute(extTabDataINPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+			        Digital_CCLog.Digital_CC.debug("extTabDataOPXML: " + extTabDataOUPXML);	
+					
+			        XMLParser xmlParserDataDB = new XMLParser(extTabDataOUPXML);
+			        
+			        String Is_CAM_Generated = xmlParserDataDB.getValueOf("Is_CAM_generated");
+			        String Cif_Id = xmlParserDataDB.getValueOf("CIF");
+			        String Is_STP = xmlParserDataDB.getValueOf("Is_STP");
+			        String pdfName = "";
+			        if(Is_CAM_Generated.equalsIgnoreCase("N")){
+			        	if (Is_STP.equalsIgnoreCase("Y")){
+			        		
+			        		 pdfName = "STP_CAM_Report";
+				        	 
+			        	}else{
+			        		 pdfName = "NON_STP_CAM_Report";
+			        	}
+			        	 String attrbList = new  Digital_CC_CAMTemplate().generate_CAM_ReportT(pdfName,Cif_Id,processInstanceID,sessionId);
+
+					}else{
+						Digital_CCLog.Digital_CC.info("Cam Report Is Already Generated");
+					}
+					/** TODO check condition for DB Query **/
+					
+//			        String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(), CommonConnection.getSessionID(Digital_CC.mLogger, false));
+//			        Digital_CCLog.Digital_CC.debug("extTabDataIPXML: " + extTabDataIPXML);
+//			        String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+//			        Digital_CCLog.Digital_CC.debug("extTabDataOPXML: " + extTabDataOPXML);	
+//					
+//			        XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+//			        int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+//			        if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec > 0) {
+//			        	  String xmlDataExtTab = xmlParserData.getNextValueOf("Record");
+//			              xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+//
+//			              NGXmlList objWorkList = xmlParserData.createList("Records", "Record");
+//			              Digital_CCLog.Digital_CC.debug("entry_date_time : " + objWorkList.getVal("entry_date_time"));
+//			              Digital_CCLog.Digital_CC.debug("prev_error_ws: " + objWorkList.getVal("prev_error_ws"));
+//			              Digital_CCLog.Digital_CC.debug("error_count: " + objWorkList.getVal("error_count"));
+//			              Integer error_count_wi  = 0;
+//			              if (objWorkList.getVal("error_count") != null && !objWorkList.getVal("error_count").equals(""))
+//			            	  error_count_wi =Integer.parseInt(objWorkList.getVal("error_count"));
+//			              
+//			              /** TODO check condition if (entry_date_time_time+ trry time < current time || route_all == "Y") && error_count < tried how many times (keep field in config file.)
+//			               * , int trialTime, String routeAll, int errorCount
+//			               * route to prev_error_ws  **/
+//			              String entry_date_time_str = objWorkList.getVal("entry_date_time"); // entry date time
+//			              long entry_date_time = 0l;
+//			              if (entry_date_time_str == null || entry_date_time_str.equals("")) {
+//			            	  entry_date_time = new Date().getTime();
+//			              } else {
+//			            	  entry_date_time = convertDateToLong(entry_date_time_str) + trialTime * 1000l; // 30 minutes
+//			              }
+//			              
+//			              long current_date = new Date().getTime();
+//			              if ((configParamMap.get("RouteAll").equalsIgnoreCase("Y") || current_date > entry_date_time) && error_count_wi <= errorCount) {
+//			            	
+//							//Lock Workitem
+//							String getWorkItemInputXML = CommonMethods.getWorkItemInput(cabinetName, sessionId, processInstanceID,WorkItemID);
+//							String getWorkItemOutputXml = CommonMethods.WFNGExecute(getWorkItemInputXML,sJtsIp,iJtsPort,1);
+//							Digital_CCLog.Digital_CC.debug("Output XML For WmgetWorkItemCall: "+ getWorkItemOutputXml);
+//	
+//							XMLParser xmlParserGetWorkItem = new XMLParser(getWorkItemOutputXml);
+//							String getWorkItemMainCode = xmlParserGetWorkItem.getValueOf("MainCode");
+//							Digital_CCLog.Digital_CC.debug("WmgetWorkItemCall Maincode:  "+ getWorkItemMainCode);
+//							if (getWorkItemMainCode.trim().equals("0"))
+//							{
+//								Digital_CCLog.Digital_CC.debug("WMgetWorkItemCall Successful: "+getWorkItemMainCode);
+//	
+//								String attributesTag = "<Decision>" + "Retry" + "</Decision>";
+//
+//								Digital_CC.mLogger.info("get Workitem call successfull for "+processInstanceID);
+//	
+//								String assignWorkitemAttributeInputXML = "<?xml version=\"1.0\"?><WMAssignWorkItemAttributes_Input>"
+//										+ "<Option>WMAssignWorkItemAttributes</Option>"
+//										+ "<EngineName>"+CommonConnection.getCabinetName()+"</EngineName>"
+//										+ "<SessionId>"+CommonConnection.getSessionID(Digital_CC.mLogger, false)+"</SessionId>"
+//										+ "<ProcessInstanceId>"+processInstanceID+"</ProcessInstanceId>"
+//										+ "<WorkItemId>"+WorkItemID+"</WorkItemId>"
+//										+ "<ActivityId>"+ActivityID+"</ActivityId>"
+//										+ "<ProcessDefId>"+ProcessDefId+"</ProcessDefId>"
+//										+ "<LastModifiedTime></LastModifiedTime>"
+//										+ "<ActivityType>"+ActivityType+"</ActivityType>"
+//										+ "<complete>D</complete>"
+//										+ "<AuditStatus></AuditStatus>"
+//										+ "<Comments></Comments>"
+//										+ "<UserDefVarFlag>Y</UserDefVarFlag>"
+//										+ "<Attributes>"+attributesTag+"</Attributes>"
+//										+ "</WMAssignWorkItemAttributes_Input>";
+//								
+//								Digital_CCLog.Digital_CC.debug("Input XML for assign Attribute is "+assignWorkitemAttributeInputXML);
+//	
+//								String assignWorkitemAttributeOutputXML = CommonMethods.WFNGExecute(assignWorkitemAttributeInputXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+//								Digital_CCLog.Digital_CC.debug("Output XML for assign Attribues is " + assignWorkitemAttributeOutputXML);
+//
+//								XMLParser xmlParserAssignAtt=new XMLParser(assignWorkitemAttributeOutputXML);
+//	
+//								String mainCodeAssignAtt=xmlParserAssignAtt.getValueOf("MainCode");
+//								if("0".equals(mainCodeAssignAtt.trim()))
+//								{
+//									String inputXmlStr = CommonMethods.completeWorkItemInput(cabinetName, sessionId, processInstanceID, WorkItemID);
+//									Digital_CCLog.Digital_CC.debug("Output XML for complete workitem "+inputXmlStr);
+//									String outputXmlStr= CommonMethods.WFNGExecute(inputXmlStr,CommonConnection.getJTSIP(),
+//											CommonConnection.getJTSPort(),1);
+//									Digital_CCLog.Digital_CC.debug("Output XML for complete workitem "+outputXmlStr);
+//									
+//									XMLParser xmlParserCompleteWi=new XMLParser(outputXmlStr);
+//									String mainCodeCompleteWi=xmlParserCompleteWi.getValueOf("MainCode");
+//									if("0".equals(mainCodeCompleteWi.trim()))
+//									{
+//										Digital_CC.mLogger.error("Successfully route to previous WS : " + processInstanceID);
+//									}
+//									else
+//									{
+//										Digital_CC.mLogger.error("Error in route to previous WS "+processInstanceID);
+//									}
+//								}
+//								else
+//								{
+//									Digital_CCLog.Digital_CC.debug("Error in route to previous WS "+processInstanceID);
+//								}					
+//							}
+//							else
+//							{
+//								//entry_date_time, prev_error_ws, error_ws, error_count
+//								error_count_wi += 1;
+//								String current_date_time = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(Calendar.getInstance().getTime());
+//								String columnNames = "error_count, entry_date_time";
+//								String columnValues = "'" + error_count_wi + "', '" + current_date_time +"'";
+//								String sWhereClause = "WI_NAME = '" + processInstanceID + "'";
+//
+//								String extTableIPUpdateXml = CommonMethods.apUpdateInput(CommonConnection.getCabinetName(), CommonConnection.getSessionID(Digital_CC.mLogger, false), EXT_TABLE, columnNames, columnValues, sWhereClause);
+//								Digital_CCLog.Digital_CC.debug("Input XML for apUpdateInput for " + EXT_TABLE + " Table : " + extTableIPUpdateXml);
+//
+//								String extTableOPUpdateXml = CommonMethods.WFNGExecute(extTableIPUpdateXml, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+//								Digital_CCLog.Digital_CC.debug("Output XML for apUpdateInput for " + EXT_TABLE + " Table : " + extTableOPUpdateXml);
+//
+//								XMLParser sXMLParserChild = new XMLParser(extTableOPUpdateXml);
+//								String StrMainCode = sXMLParserChild.getValueOf("MainCode");
+//
+//								if (StrMainCode.equals("0"))
+//									Digital_CCLog.Digital_CC.debug("Successful in apUpdateInput the record in : " + EXT_TABLE);
+//								else {
+//									Digital_CCLog.Digital_CC.debug("Error in Executing apUpdateInput sOutputXML : " + extTabDataOPXML);
+//									System.out.println("WMgetWorkItemCall failed: "+processInstanceID);
+//									Digital_CCLog.Digital_CC.debug("WMgetWorkItemCall failed: "+processInstanceID);
+//								}
+//							}
+//				         }
+//					} else
+//					{
+//						Digital_CCLog.Digital_CC.debug("WI NOT FOUND : "+processInstanceID);
+//					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			Digital_CCLog.Digital_CC.debug("Exception: "+e.getMessage());
+		}
+					
+					
+	}
+	
+	
+	// read the config files 
+	private int readConfig()
+	{
+		Properties p = null;
+		try {
+
+			p = new Properties();
+			p.load(new FileInputStream(new File(System.getProperty("user.dir")+ File.separator + "ConfigFiles"+ File.separator+ "DCC_CAM_Generate_Logger.properties")));
+
+			Enumeration<?> names = p.propertyNames();
+
+			while (names.hasMoreElements())
+			  {
+			    String name = (String) names.nextElement();
+			    configParamMap.put(name, p.getProperty(name));
+			  }
+		    }
+		catch (Exception e)
+		{
+			return -1 ;
+		}
+		return 0;
+	}
+	
+	// date format should be in yyyy-MM-dd hh:mm:ss format.
+	public static long convertDateToLong(String date)
+	{
+		SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+		Date date_long = null;
+		try {
+			date_long = simpleDateFormat.parse(date);
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		return date_long.getTime();
+	}
+	
+	
+	
+	
+	
+	
+	// ------------ code by deepanshu prashar for attach document with workitem----------//
+	
+	public String AttachDocumentWithWI(String pid,String pdfName) {
+		
+		String docxml="";
+		String documentindex="";
+		String doctype="";
+		
+		try{
+			Digital_CCLog.Digital_CC.debug("inside ODAddDocument");		
+			Digital_CCLog.Digital_CC.debug("Proess Instance Id: "+pid);
+			Digital_CCLog.Digital_CC.debug("Integration call: "+pdfName);
+			
+			String sCabname=CommonConnection.getCabinetName();
+			Digital_CCLog.Digital_CC.debug("sCabname"+sCabname);
+			
+			String sSessionId = CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false); 
+			Digital_CCLog.Digital_CC.debug("sSessionId"+sSessionId);
+			String sJtsIp = CommonConnection.getJTSIP();
+			Digital_CCLog.Digital_CC.debug("sJtsIp: "+ sJtsIp);
+			
+			String iJtsPort_int =CommonConnection.getJTSPort(); //TODO check this
+			Digital_CCLog.Digital_CC.debug("iJtsPort_int: "+ iJtsPort_int);
+			
+			String sPath="";
+			String path = System.getProperty("user.dir");// for path
+			Digital_CCLog.Digital_CC.debug(" \nAbsolute Path :" + path);		
+			String pdfTemplatePath = "";
+			String generatedPdfPath = "";
+			
+			//Reading path from property file
+			Properties properties = new Properties();
+			properties.load(new FileInputStream(System.getProperty("user.dir")+ System.getProperty("file.separator")+ "ConfigFiles" + System.getProperty("file.separator")+ "RakBankConfig.properties"));
+			Digital_CCLog.Digital_CC.debug("Template Path: "+pdfName);
+			
+			String dynamicPdfName = pid + pdfName + ".pdf";
+			Digital_CCLog.Digital_CC.debug("\nGeneratedPdfPathCheck :" + generatedPdfPath);
+			pdfTemplatePath = path + pdfTemplatePath;//Getting complete path of the pdf tempplate
+			generatedPdfPath = properties.getProperty("DCC_Form_Report");//Get the loaction of the path where generated template will be saved
+			Digital_CCLog.Digital_CC.debug("\nGeneratedPdfPathCheck :" + generatedPdfPath);
+			generatedPdfPath = generatedPdfPath+ System.getProperty("file.separator")+dynamicPdfName;
+			Digital_CCLog.Digital_CC.debug("\nGeneratedPdfPath1 :" + generatedPdfPath);
+			generatedPdfPath = path +generatedPdfPath;//Complete path of generated PDF
+			Digital_CCLog.Digital_CC.debug("\nGeneratedPdfPath :" + generatedPdfPath);
+			Digital_CCLog.Digital_CC.debug("\npdfTemplatePath:" + pdfTemplatePath);
+			
+			
+			docxml = SearchExistingDoc(pid,pdfName,sCabname,sSessionId,sJtsIp,iJtsPort_int,generatedPdfPath);
+			Digital_CCLog.Digital_CC.debug("Final Document Output: "+docxml);
+			documentindex = getTagValue(docxml,"DocumentIndex");
+		
+			doctype="new";
+			
+			Digital_CCLog.Digital_CC.debug(docxml+"~"+documentindex+"~"+doctype+"~"+dynamicPdfName);
+			String Output="0000~"+docxml+"~"+documentindex+"~"+doctype+"~"+dynamicPdfName;
+			Digital_CCLog.Digital_CC.debug(" Output: "+Output);
+			return Output;
+			
+			
+			
+		}catch (Exception e) {
+			Digital_CCLog.Digital_CC.debug("Exception while adding the document: "+e);
+			return "Exception while adding the document: "+e;
+		}
+	}
+	
+	public String SearchExistingDoc(String pid, String FrmType, String sCabname, String sSessionId, String sJtsIp, String iJtsPort_int, String sFilepath) 
+	{
+		try 
+		{
+			String strFolderIndex="";
+			String strImageIndex="";
+			
+			String strInputQry1="SELECT FOLDERINDEX,ImageVolumeIndex FROM PDBFOLDER WITH(NOLOCK) WHERE NAME='" + pid + "'";
+			
+			String iJtsPort =  iJtsPort_int;
+			
+			Digital_CCLog.Digital_CC.debug("sInputXML: "+strInputQry1);
+			
+			
+			String extTabDataIPXMLDocx = CommonMethods.apSelectWithColumnNames(strInputQry1, CommonConnection.getCabinetName(), CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false));
+			Digital_CCLog.Digital_CC.debug("extTabDataIPXML: " + extTabDataIPXMLDocx);
+	        String extTabDataOPXMLDocx = CommonMethods.WFNGExecute(extTabDataIPXMLDocx, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+	        Digital_CCLog.Digital_CC.debug("extTabDataOPXML: " + extTabDataOPXMLDocx);	
+			
+	        XMLParser xmlParserData = new XMLParser(extTabDataOPXMLDocx);
+	        Digital_CCLog.Digital_CC.debug("xmlParserData: " + xmlParserData);	
+	        
+	        String getWorkItemMainCode = xmlParserData.getValueOf("MainCode");
+			Digital_CCLog.Digital_CC.debug("WmgetWorkItemCall Maincode:  "+ getWorkItemMainCode);
+			
+			int Totalrec2 = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+
+			if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0") && Totalrec2 > 0) {
+				
+				NGXmlList objWorkList2 = xmlParserData.createList("Records", "Record");	
+				
+				for (; objWorkList2.hasMoreElements(true); objWorkList2.skip(true)) {
+					strFolderIndex = objWorkList2.getVal("FOLDERINDEX");
+					strImageIndex = objWorkList2.getVal("ImageVolumeIndex");
+					
+				}
+				
+			}
+			//List<List<String>> dataFromDB = iformObj.getDataFromDB(strInputQry1);
+	        
+			
+			Digital_CCLog.Digital_CC.debug("strFolderIndex: "+strFolderIndex);
+			Digital_CCLog.Digital_CC.debug("strImageIndex: "+strImageIndex);
+			
+			IFormXmlResponse xmlParserDataNew = new IFormXmlResponse();
+			
+			
+			if (!(strFolderIndex.equalsIgnoreCase("") && strImageIndex.equalsIgnoreCase(""))) 
+			{
+				
+				String strInputQry2="SELECT a.documentindex,b.ParentFolderIndex FROM PDBDOCUMENT A WITH (NOLOCK), PDBDOCUMENTCONTENT B WITH (NOLOCK)" + "WHERE A.DOCUMENTINDEX= B.DOCUMENTINDEX AND A.NAME IN ('" + FrmType + "','') AND B.PARENTFOLDERINDEX ='" + strFolderIndex + "'";
+				Digital_CCLog.Digital_CC.debug("sInputXML: "+strInputQry2);
+				
+				String extTabDataIPXMLDocx2 = CommonMethods.apSelectWithColumnNames(strInputQry1, CommonConnection.getCabinetName(), CommonConnection.getSessionID(Digital_CCLog.Digital_CC, false));
+				Digital_CCLog.Digital_CC.debug("extTabDataIPXML: " + extTabDataIPXMLDocx2);
+		        String extTabDataOPXMLDocx2 = CommonMethods.WFNGExecute(extTabDataIPXMLDocx2, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+		        Digital_CCLog.Digital_CC.debug("extTabDataOPXML: " + extTabDataOPXMLDocx2);	
+				
+		        XMLParser xmlParserDataDocx2 = new XMLParser(extTabDataOPXMLDocx2);
+		        Digital_CCLog.Digital_CC.debug("xmlParserDataDocx2: "+ xmlParserDataDocx2);
+				
+		        String getWorkItemMainCodeDocx2 = xmlParserDataDocx2.getValueOf("MainCode");
+				Digital_CCLog.Digital_CC.debug("getWorkItemMainCodeDocx2 Maincode:  "+ getWorkItemMainCodeDocx2);
+				
+//				String strdocumentindex = "";
+//				String strParentFolderIndex = "";
+				int Totalrec2Docx = Integer.parseInt(xmlParserDataDocx2.getValueOf("TotalRetrieved"));
+
+				ArrayList<String> strdocumentindex = new ArrayList<String>(Totalrec2Docx);
+				Digital_CCLog.Digital_CC.debug("strdocumentindex: "+strdocumentindex);
+				ArrayList<String> strParentFolderIndex = new ArrayList<String>(Totalrec2Docx);
+				Digital_CCLog.Digital_CC.debug("strParentFolderIndex: "+strParentFolderIndex);
+
+				if (xmlParserDataDocx2.getValueOf("MainCode").equalsIgnoreCase("0") && Totalrec2Docx > 0) {
+					
+					NGXmlList objWorkListDocx2 = xmlParserDataDocx2.createList("Records", "Record");	
+					
+					for (; objWorkListDocx2.hasMoreElements(true); objWorkListDocx2.skip(true)) {
+						//TODO check this 
+						strdocumentindex.add(objWorkListDocx2.getVal("documentindex")) ;
+						strParentFolderIndex.add(objWorkListDocx2.getVal("ImageVolumeIndex")); 
+						
+					}
+					
+				}
+				Digital_CCLog.Digital_CC.debug("strdocumentindex: "+strdocumentindex);
+				Digital_CCLog.Digital_CC.debug("strParentFolderIndex: "+strParentFolderIndex);
+				
+				
+				try 
+				{
+					Digital_CCLog.Digital_CC.debug("Inside Adding PN File: ");
+					Digital_CCLog.Digital_CC.debug("sFilepath: "+sFilepath);
+					String filepath = sFilepath;
+					
+					File newfile = new File(filepath);
+					String name = newfile.getName();
+					String ext = "";
+					String sMappedInputXml="";
+					if (name.contains(".")) {
+						ext = name.substring(name.lastIndexOf("."), name.length());
+					}
+					JPISIsIndex ISINDEX = new JPISIsIndex();
+					JPDBRecoverDocData JPISDEC = new JPDBRecoverDocData();
+					String strDocumentPath = sFilepath;
+					File processFile = null;
+					long lLngFileSize = 0L;
+					processFile = new File(strDocumentPath);
+					
+					lLngFileSize = processFile.length();
+					String lstrDocFileSize = "";
+					lstrDocFileSize = Long.toString(lLngFileSize);
+					
+					String createdbyappname = "";
+					createdbyappname = ext.replaceFirst(".", "");
+					Short volIdShort = Short.valueOf(strImageIndex);
+					
+					Digital_CCLog.Digital_CC.debug("lLngFileSize: --"+lLngFileSize);
+					if (lLngFileSize != 0L)
+					{
+						Digital_CCLog.Digital_CC.debug("sJtsIp --"+sJtsIp+" iJtsPort-- "+iJtsPort+" sCabname--"+sCabname+" volIdShort.shortValue() --"+volIdShort.shortValue()+" strDocumentPath--"+strDocumentPath+" JPISDEC --"+JPISDEC+"  ISINDEX-- "+ISINDEX);
+						CPISDocumentTxn.AddDocument_MT("", sJtsIp, iJtsPort, sCabname, volIdShort.shortValue(), strDocumentPath, JPISDEC, "", ISINDEX);
+						
+					}
+					Digital_CCLog.Digital_CC.debug("dataFromDB2.size(): --"+Totalrec2Docx);
+					if (Totalrec2Docx > 0) 
+					{  
+						SimpleDateFormat formatter= new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.0");
+						Date date = new Date(System.currentTimeMillis());
+						String strCurrDateTime = formatter.format(date);
+						for(int i=0;i<Totalrec2Docx;i++)
+						{
+							Digital_CCLog.Digital_CC.debug("NGOChangeDocumentProperty_Input section");
+							 sMappedInputXml = "<?xml version=\"1.0\"?>"
+									+ "<NGOChangeDocumentProperty_Input>"
+									+ "<Option>NGOChangeDocumentProperty</Option>"
+									+ "<CabinetName>" + sCabname + "</CabinetName>"
+									+ "<UserDBId>" + sSessionId + "</UserDBId><Document><DocumentIndex>" + strdocumentindex.get(i) + "</DocumentIndex><NoOfPages>1</NoOfPages>"
+									+ "<DocumentName>" + FrmType + "</DocumentName>"
+									+ "<AccessDateTime>"+strCurrDateTime+"</AccessDateTime>"
+									+ "<ExpiryDateTime>2099-12-12 0:0:0.0</ExpiryDateTime>"
+									+ "<CreatedByAppName>" + createdbyappname + "</CreatedByAppName>"
+									+ "<VersionFlag>N</VersionFlag>"
+									+ "<AccessType>S</AccessType>"
+									+ "<ISIndex>" + ISINDEX.m_nDocIndex + "#" + ISINDEX.m_sVolumeId + "</ISIndex><TextISIndex>0#0#</TextISIndex>"
+									+ "<DocumentType>N</DocumentType>"
+									+ "<DocumentSize>" + lstrDocFileSize + "</DocumentSize><Comment>" + createdbyappname + "</Comment><RetainAnnotation>N</RetainAnnotation></Document>"
+									+ "</NGOChangeDocumentProperty_Input>";    
+						}
+					} 
+					else 
+					{
+						
+						sMappedInputXml="<?xml version=\"1.0\"?>"+
+									"<NGOAddDocument_Input>"+ 
+									"<Option>NGOAddDocument</Option>"+ 
+									"<CabinetName>"+sCabname+"</CabinetName>"+ 
+									"<UserDBId>"+sSessionId+"</UserDBId>" + 
+									"<GroupIndex>0</GroupIndex>" +
+									"<VersionFlag>Y</VersionFlag>" +
+									"<ParentFolderIndex>"+strFolderIndex+"</ParentFolderIndex>" +
+									"<DocumentName>"+FrmType+"</DocumentName>"+
+									"<CreatedByAppName>"+createdbyappname+"</CreatedByAppName>" +
+									"<Comment>"+FrmType+"</Comment>" +
+									"<VolumeIndex>"+ISINDEX.m_sVolumeId+"</VolumeIndex>"+
+									"<FilePath>"+strDocumentPath+"</FilePath>"+
+									"<ISIndex>"+ISINDEX.m_nDocIndex+"#"+ISINDEX.m_sVolumeId+"</ISIndex>" + 
+									"<NoOfPages>1</NoOfPages>" + 
+									"<DocumentType>N</DocumentType>" +
+									"<DocumentSize>"+lstrDocFileSize+"</DocumentSize>" +
+									"</NGOAddDocument_Input>";
+					
+					}
+					Digital_CCLog.Digital_CC.debug("Document Addition sInputXML: "+sMappedInputXml);
+					//String sOutputXml = WFCustomCallBroker.execute(sMappedInputXml, sJtsIp, iJtsPort, 1);
+					String sOutputXML = ExecuteQueryOnServer(sMappedInputXml);
+					xmlParserDataNew.setXmlString((sOutputXML));
+					Digital_CCLog.Digital_CC.debug("Document Addition sOutputXml: "+sOutputXML);
+					String status_D = xmlParserDataNew.getVal("Status");
+					if(status_D.equalsIgnoreCase("0")){
+						//deleteLocalDocument(sFilepath);
+						return sOutputXML;
+					} else {
+						return "Error in Document Addition";
+					}
+				} 
+				catch (JPISException e) 
+				{
+					return "Error in Document Addition at Volume";
+				} 
+				catch (Exception e) 
+				{
+					return "Exception Occurred in Document Addition";
+				}
+					
+			}
+			return "Any Error occurred in Addition of Document";
+		} 
+		catch (Exception e) 
+		{
+			return "Exception Occurred in SearchDocument";
+		}
+	}
+
+	public String ExecuteQueryOnServer(String sInputXML) {
+		try {
+			Digital_CCLog.Digital_CC.debug("Server Ip :" + CommonConnection.getJTSIP());
+			Digital_CCLog.Digital_CC.debug("Server Port :" + CommonConnection.getJTSPort());
+			Digital_CCLog.Digital_CC.debug("Input XML :" + sInputXML);
+
+			return NGEjbClient.getSharedInstance().makeCall(CommonConnection.getJTSIP(),
+					CommonConnection.getJTSPort() + "", "WebSphere", sInputXML);
+		} catch (Exception excp) {
+			Digital_CCLog.Digital_CC.debug("Exception occured in executing API on server :\n" + excp);
+			return "Exception occured in executing API on server :\n" + excp;
+		}
+
+	}
+	
+	
+	public String getTagValue(String xml, String tag) 
+	{
+		try {
+			Document doc = getDocument(xml);
+			NodeList nodeList = doc.getElementsByTagName(tag);
+
+			int length = nodeList.getLength();
+
+			if (length > 0) {
+				Node node = nodeList.item(0);
+				if (node.getNodeType() == Node.ELEMENT_NODE) {
+					NodeList childNodes = node.getChildNodes();
+					String value = "";
+					int count = childNodes.getLength();
+					for (int i = 0; i < count; i++) {
+						Node item = childNodes.item(i);
+						if (item.getNodeType() == Node.TEXT_NODE) {
+							value += item.getNodeValue();
+						}
+					}
+					return value;
+				} else if (node.getNodeType() == Node.TEXT_NODE) {
+					return node.getNodeValue();
+				}
+			}
+		} catch (Exception e) {
+			Digital_CCLog.Digital_CC.debug("Exception :" + e);
+		}
+		return "";
+	}
+	
+	public Document getDocument(String xml) throws ParserConfigurationException, SAXException, IOException {
+		// Step 1: create a DocumentBuilderFactory
+		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+
+		// Step 2: create a DocumentBuilder
+		DocumentBuilder db = dbf.newDocumentBuilder();
+
+		// Step 3: parse the input file to get a Document object
+		Document doc = db.parse(new InputSource(new StringReader(xml)));
+		return doc;
+	}
+	
+}

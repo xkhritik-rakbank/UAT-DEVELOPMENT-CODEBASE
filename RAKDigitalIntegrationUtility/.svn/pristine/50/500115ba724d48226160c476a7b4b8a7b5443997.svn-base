@@ -1,0 +1,9 @@
+queueID=
+MQ_SOCKET_CONNECTION_TIMEOUT=60
+INTEGRATION_WAIT_TIME=65
+SleepIntervalInMin=1
+
+fromMailID=BPMSystemAlerts@rakbanktst.ae
+toMailID = test1@rakbanktst.ae
+mailSubject = Workitem moved to error handling queue.
+MailStr=<html><body>Dear Concerned,<br><br>The Workitem Number <WI_NAME> has entered the error handling queue.<br> Return Code <ret_Code> <br>Error message <errormsg>  <br><br>Regards,<br>RAKBANK <br>* This is an automated email, please do not reply.</body></html>

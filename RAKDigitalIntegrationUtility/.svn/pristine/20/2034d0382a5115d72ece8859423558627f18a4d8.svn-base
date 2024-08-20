@@ -1,0 +1,25 @@
+<EE_EAI_MESSAGE>
+	<EE_EAI_HEADER>
+		<MsgFormat>CC_SERVICE_REQUEST</MsgFormat>
+		<MsgVersion>0001</MsgVersion>
+		<RequestorChannelId>CAS</RequestorChannelId>
+		<RequestorUserId>RAKUSER</RequestorUserId>
+		<RequestorLanguage>E</RequestorLanguage>
+		<RequestorSecurityInfo>secure</RequestorSecurityInfo>
+		<ReturnCode>911</ReturnCode>
+		<ReturnDesc>Issuer Timed Out</ReturnDesc>
+		<MessageId>123123453</MessageId>
+		<Extra1>REQ||SHELL.JOHN</Extra1>
+		<Extra2>YYYY-MM-DDThh:mm:ss.mmm+hh:mm</Extra2>
+	</EE_EAI_HEADER>
+	<ServiceRequest>
+		<BankId>RAK</BankId>
+		<Reference>C</Reference>
+		<Number>Card_Number_ID</Number>
+		<Type>CloseAccount</Type>
+		<ActionDate>date</ActionDate>
+		<MemoText>AccountStatus</MemoText>
+		<FreeField1></FreeField1>
+		<FreeField2></FreeField2>
+	</ServiceRequest>
+</EE_EAI_MESSAGE>

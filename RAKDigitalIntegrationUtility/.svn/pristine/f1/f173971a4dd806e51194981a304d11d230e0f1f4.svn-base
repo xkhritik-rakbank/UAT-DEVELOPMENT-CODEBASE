@@ -1,0 +1,9 @@
+queueID=2198
+queueID_ETB_hold=2197
+MQ_SOCKET_CONNECTION_TIMEOUT=60
+INTEGRATION_WAIT_TIME=65
+SleepIntervalInMin=1
+
+TrialTime=30
+RouteAll=Y
+ErrorCount=5

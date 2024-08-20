@@ -1,0 +1,8 @@
+queueID=1916
+MQ_SOCKET_CONNECTION_TIMEOUT=60
+INTEGRATION_WAIT_TIME=65
+SleepIntervalInMin=1
+COOLINGDOCS=Passport_FirstPage
+DOCGENERATIONPATH=D:\Newgen\Custom Utilites\RAKDigitalIntegrationUtility\Generated_document_DCC\Generated
+TrialTime=1
+ErrorCount=1

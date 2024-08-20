@@ -1,0 +1,434 @@
+package com.newgen.DCC.SystemIntegration;
+
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+
+import com.newgen.DCC.DECTECHIntegration.DCC_DECTECH_Integration_Input;
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.NGXmlList;
+import com.newgen.omni.jts.cmgr.XMLParser;
+
+public class IntegrateExternalExposure
+  {
+
+    private static String CheckGridTable = "NG_DCC_EXTTABLE";
+    
+    public static String IntegratewithMW(String processInstanceID, int integrationWaitTime, int socketConnectionTimeOut, HashMap<String, String> socketDetailsMap,String WorkItemID,String ActivityID,String ActivityType,String ProcessDefId) throws IOException, Exception
+      {
+    	String MainStatusFlag = "Success";
+    	String DBQuery = "SELECT Wi_Name, CIF_ID, PassportNo, EmirateID, MobileNo,Final_Limit, Title, FirstName, MiddleName, LastName, dob, Nationality, Designation, Cust_Decl_Salary, "
+				+ "Prospect_id, FinalDBR, Passport_expiry, Gender_Code, IndusSeg, EXTERNAL_EXPOSURE_STATUS FROM NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+        
+        String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(), CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false));
+        DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+        String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+        DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+        XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+        int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+
+        if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec > 0)
+          {
+            String xmlDataExtTab = xmlParserData.getNextValueOf("Record");
+            xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+
+            NGXmlList objWorkList = xmlParserData.createList("Records", "Record");
+
+            HashMap<String, String> CheckGridDataMap = new HashMap<String, String>();
+
+            for (; objWorkList.hasMoreElements(true); objWorkList.skip(true))
+              {
+            	CheckGridDataMap.put("Wi_Name", validateValue(objWorkList.getVal("Wi_Name")));
+                CheckGridDataMap.put("Final_Limit", validateValue(objWorkList.getVal("Final_Limit")));
+                CheckGridDataMap.put("FirstNm", validateValue(objWorkList.getVal("FirstName")));
+                CheckGridDataMap.put("LastNm", validateValue(objWorkList.getVal("LastName")));
+                CheckGridDataMap.put("CUSTOMERNAME", validateValue(objWorkList.getVal("CUSTOMERNAME")));
+                CheckGridDataMap.put("Gender", validateValue(objWorkList.getVal("Gender_Code")));
+                CheckGridDataMap.put("EXTERNAL_EXPOSURE_STATUS", validateValue(objWorkList.getVal("EXTERNAL_EXPOSURE_STATUS")));
+                CheckGridDataMap.put("MobileNo", validateValue(objWorkList.getVal("MobileNo")));
+                CheckGridDataMap.put("EmirateID", validateValue(objWorkList.getVal("EmirateID")));
+                CheckGridDataMap.put("PassportNo", validateValue(objWorkList.getVal("PassportNo")));
+                CheckGridDataMap.put("BirthDt", validateValue(objWorkList.getVal("dob")));
+                //TODO check DECTECH condition also  1==1
+                if (!(CheckGridDataMap.get("EXTERNAL_EXPOSURE_STATUS").equalsIgnoreCase("Y")) || 1==1)//To Do append the second condition..
+                {
+                	String flag = callExternalExposure(processInstanceID, CheckGridDataMap, integrationWaitTime, socketConnectionTimeOut, socketDetailsMap);
+                    
+                	if("N".equalsIgnoreCase(flag))
+                    {
+                    	if(!"Failure".equalsIgnoreCase(MainStatusFlag))
+                    	{
+                    		MainStatusFlag = "Failure";
+                    	}
+                    	DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("callExternalExposure status : Failure");
+                    } else if ("Y".equalsIgnoreCase(flag)) {
+                    	String wi_name = CheckGridDataMap.get("Wi_Name");
+                    	DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("Inside DECTECH Call for WI Number: " + wi_name);
+                    	
+                    	/*String ActivityName=xmlParserData.getValueOf("ActivityName");
+                    	DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("ActivityName: "+ActivityName);*/
+    					    					
+                    	DCC_DECTECH_Integration_Input.GenerateXML(wi_name, ActivityID, ActivityType, ProcessDefId,WorkItemID);
+                    }
+                }
+             }
+          }
+        else
+          {
+            DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WmgetWorkItem status: " + xmlParserData.getValueOf("MainCode"));
+          }
+        	return MainStatusFlag;
+    }
+
+    private static String callExternalExposure(String wiName, HashMap<String, String> CheckGridDataMap, int integrationWaitTime, int socketConnectionTimeOut, HashMap<String, String> socketDetailsMap)
+      throws IOException, Exception
+      {
+		SimpleDateFormat sdf1 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.mmm");
+		String DateExtra2 = sdf1.format(new Date())+"+04:00";
+		
+		String flag = "";
+        StringBuilder sInputXML = new StringBuilder();
+        if (!"NA".equalsIgnoreCase(CheckGridDataMap.get("EXTERNAL_EXPOSURE_STATUS")))
+        {
+            sInputXML = sInputXml(wiName,  DateExtra2, CheckGridDataMap);
+            DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Request XML for ExternalExposure  " + sInputXML);
+	        
+	        // need to uncomment
+	        String responseXML = socketConnection(CommonConnection.getCabinetName(), CommonConnection.getUsername(), CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false), 
+	        		CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), wiName, "ExternalExposure", socketConnectionTimeOut, integrationWaitTime, socketDetailsMap, sInputXML);
+	        
+	        DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Request XML for responseXML  " + responseXML);
+	        
+	        flag = ResponseParser.getOutputXMLValues(responseXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(),
+	          CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false), CommonConnection.getCabinetName(), 
+	          wiName, CheckGridDataMap.get("Product"), CheckGridDataMap.get("SubProduct"), CheckGridDataMap.get("CIF"), 
+	          CheckGridDataMap.get("CUSTOMER_TYPE"));
+	        flag = flag == "true" ? "Y" : "N";
+        } else
+        	flag = "NA";
+
+    	String columnNames = "EXTERNAL_EXPOSURE_STATUS";
+    	String columnValues = "'" + flag + "'";
+    	String sWhereClause = "WI_NAME='" + wiName + "'";
+        String inputXML = CommonMethods.apUpdateInput(CommonConnection.getCabinetName(), CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false), 
+        		CheckGridTable, columnNames, columnValues, sWhereClause);
+        DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Input XML for apUpdateInput for " + CheckGridTable + " Table : " + inputXML);
+        String outputXml = CommonMethods.WFNGExecute(inputXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+        DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Output XML for apUpdateInput for " + CheckGridTable + " Table : " + outputXml);
+        XMLParser sXMLParserChild = new XMLParser(outputXml);
+        String StrMainCode = sXMLParserChild.getValueOf("MainCode");
+        //String RetStatus = null;
+        if (StrMainCode.equals("0"))
+          {
+            DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Successful in apUpdateInput the record in : " + CheckGridTable);
+            //RetStatus = "Success in apUpdateInput the record";
+          }
+        else
+          {
+            DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Error in Executing apUpdateInput sOutputXML : " + outputXml);
+            //RetStatus = "Error in Executing apUpdateInput";
+          }
+        return flag;
+      }
+
+	private static StringBuilder sInputXml(String wiName, String DateExtra2, HashMap<String, String> CheckGridDataMap) {
+		String emi_id = CheckGridDataMap.get("EmirateID");
+		emi_id = emi_id.substring(0, 3) + "-" + emi_id.substring(3, 7) + "-" + emi_id.substring(7, 14) + "-"+ emi_id.substring(14, 15);
+		StringBuilder sb = new StringBuilder(
+				"<EE_EAI_MESSAGE>" + "\n"
+                +"<EE_EAI_HEADER>" + "\n"
+                +"<MsgFormat>CUSTOMER_EXPOSURE</MsgFormat>" + "\n"
+                +"<MsgVersion>0001</MsgVersion>" + "\n"
+                +"<RequestorChannelId>CAS</RequestorChannelId>" + "\n"
+                +"<RequestorUserId>RAKUSER</RequestorUserId>" + "\n"
+                +"<RequestorLanguage>E</RequestorLanguage>" + "\n"
+                +"<RequestorSecurityInfo>secure</RequestorSecurityInfo>" + "\n"
+                +"<ReturnCode>911</ReturnCode>" + "\n"
+                +"<ReturnDesc>IssuerTimedOut</ReturnDesc>" + "\n"
+                +"<MessageId>CUSTOMER_EXPOSUER_0V27</MessageId>" + "\n"
+                +"<Extra1>REQ||SHELL.JOHN</Extra1>" + "\n"
+                +"<Extra2>" + DateExtra2+"</Extra2>" + "\n"
+			+"</EE_EAI_HEADER>" + "\n"
+			+"<CustomerExposureRequest>" + "\n"
+                +"<BankId>RAK</BankId>" + "\n"
+                +"<BranchId>RAK123</BranchId>" + "\n"
+                +"<RequestType>ExternalExposure</RequestType>" + "\n"
+                +"<CustType>1</CustType>" + "\n"
+                +"<UserId>deepak</UserId>" + "\n"
+                +"<AcctId></AcctId>" + "\n"
+                +"<TxnAmount>" + CheckGridDataMap.get("Final_Limit") + "</TxnAmount>" + "\n"
+                +"<NoOfInstallments></NoOfInstallments>" + "\n"
+                +"<DurationOfAgreement></DurationOfAgreement>" + "\n"
+                +"<FirstNm>"+ CheckGridDataMap.get("FirstNm") +"</FirstNm>" + "\n"
+                +"<LastNm>"+ CheckGridDataMap.get("LastNm") +"</LastNm>" + "\n"
+                +"<FullNm>"+ CheckGridDataMap.get("FirstNm") +" "+ CheckGridDataMap.get("LastNm") +"</FullNm>" + "\n" 
+                +"<BirthDt>"+ CheckGridDataMap.get("BirthDt") +"</BirthDt>" + "\n"
+                +"<Gender>"+ CheckGridDataMap.get("Gender") +"</Gender>" + "\n"
+                +"<Nationality>IN</Nationality>" + "\n"
+                +"<InquiryPurpose>1</InquiryPurpose>" + "\n" 
+                +"<ProviderApplNo>" + wiName.split("-")[1] + (new Date()).getTime() + "</ProviderApplNo>" + "\n"
+                +"<CBApplNo></CBApplNo>" + "\n"
+                +"<IsCoApplicant>0</IsCoApplicant>" + "\n"
+                +"<LosIndicator>1</LosIndicator>" + "\n"
+                +"<ContractType>1</ContractType>" + "\n"
+                +"<OverridePeriod>0</OverridePeriod>" + "\n"
+                +"<PrimaryMobileNo>" + CheckGridDataMap.get("MobileNo") +"</PrimaryMobileNo>" + "\n"
+                +"<ConsentFlag>1</ConsentFlag>" + "\n"
+                +"<BureauCategory>Retail</BureauCategory>" + "\n"
+                +"<BureauId>10</BureauId>" + "\n"
+                +"<CallType>Synchronous</CallType>" + "\n"
+                +"<LegalDocInfo>" + "\n"
+                                +"<DocType>Emirates id</DocType>" + "\n"
+                                +"<DocNum>"+ emi_id +"</DocNum>" + "\n"
+                +"</LegalDocInfo>" + "\n"
+                +"<LegalDocInfo>" + "\n"
+                                +"<DocType>Passport Number</DocType>" + "\n"
+                                +"<DocNum>"+CheckGridDataMap.get("PassportNo")+"</DocNum>" + "\n"
+                +"</LegalDocInfo>" + "\n"
+		+"</CustomerExposureRequest>" + "\n"
+		+"</EE_EAI_MESSAGE>"
+		);
+		return  sb;
+	}
+
+	static String socketConnection(String cabinetName, String username, String sessionId, String sJtsIp,
+			String iJtsPort, String processInstanceID, String ws_name,
+			int connection_timeout, int integrationWaitTime,HashMap<String, String> socketDetailsMap, StringBuilder sInputXML)
+	{
+
+		String socketServerIP;
+		int socketServerPort;
+		Socket socket = null;
+		OutputStream out = null;
+		InputStream socketInputStream = null;
+		DataOutputStream dout = null;
+		DataInputStream din = null;
+		String outputResponse = null;
+		String inputRequest = null;
+		String inputMessageID = null;
+
+		try
+		{
+
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("userName "+ username);
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SessionId "+ sessionId);
+
+			socketServerIP=socketDetailsMap.get("SocketServerIP");
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketServerIP "+ socketServerIP);
+			socketServerPort=Integer.parseInt(socketDetailsMap.get("SocketServerPort"));
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketServerPort "+ socketServerPort);
+
+	   		if (!("".equalsIgnoreCase(socketServerIP) && socketServerIP == null && socketServerPort==0))
+	   		{
+
+    			socket = new Socket(socketServerIP, socketServerPort);
+    			socket.setSoTimeout(connection_timeout*1000);
+    			out = socket.getOutputStream();
+    			socketInputStream = socket.getInputStream();
+    			dout = new DataOutputStream(out);
+    			din = new DataInputStream(socketInputStream);
+    			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Dout " + dout);
+    			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Din " + din);
+
+    			outputResponse = "";
+
+    			inputRequest = getRequestXML( cabinetName,sessionId ,processInstanceID, ws_name, username, sInputXML);
+
+    			if (inputRequest != null && inputRequest.length() > 0)
+    			{
+    				int inputRequestLen = inputRequest.getBytes("UTF-16LE").length;
+    				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("RequestLen: "+inputRequestLen + "");
+    				inputRequest = inputRequestLen + "##8##;" + inputRequest;
+    				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("InputRequest"+"Input Request Bytes : "+ inputRequest.getBytes("UTF-16LE"));
+    				dout.write(inputRequest.getBytes("UTF-16LE"));
+    				dout.flush();
+    			}
+    			byte[] readBuffer = new byte[1000];
+    			int num = din.read(readBuffer);
+    			if (num > 0)
+				{
+
+					byte[] arrayBytes = new byte[num];
+					System.arraycopy(readBuffer, 0, arrayBytes, 0, num);
+					outputResponse = outputResponse + new String(arrayBytes, "UTF-16LE");
+					inputMessageID = outputResponse;
+					DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("OutputResponse: " + outputResponse);
+
+					if (!"".equalsIgnoreCase(outputResponse))
+
+						outputResponse = getResponseXML(cabinetName, sJtsIp, iJtsPort, sessionId, processInstanceID,
+								outputResponse, integrationWaitTime);
+
+					if (outputResponse.contains("&lt;")) {
+						outputResponse = outputResponse.replaceAll("&lt;", "<");
+						outputResponse = outputResponse.replaceAll("&gt;", ">");
+					}
+				}
+    			socket.close();
+
+				outputResponse = outputResponse.replaceAll("</MessageId>","</MessageId><InputMessageId>"+inputMessageID+"</InputMessageId>");
+
+				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("outputResponse "+outputResponse);
+				return outputResponse;
+
+    	 		}
+
+    		else
+    		{
+    			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketServerIp and SocketServerPort is not maintained "+"");
+    			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketServerIp is not maintained "+	socketServerIP);
+    			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug(" SocketServerPort is not maintained "+	socketServerPort);
+    			return "Socket Details not maintained";
+    		}
+
+		}
+
+		catch (Exception e)
+		{
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Exception Occured Mq_connection_CC"+e.getStackTrace());
+			return "";
+		}
+		finally
+		{
+			try
+			{
+				if(out != null)
+				{
+					out.close();
+					out=null;
+				}
+				if(socketInputStream != null)
+				{
+
+					socketInputStream.close();
+					socketInputStream=null;
+				}
+				if(dout != null)
+				{
+
+					dout.close();
+					dout=null;
+				}
+				if(din != null)
+				{
+
+					din.close();
+					din=null;
+				}
+				if(socket != null)
+				{
+					if(!socket.isClosed())
+						socket.close();
+					socket=null;
+				}
+
+			}
+
+			catch(Exception e)
+			{
+				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Final Exception Occured Mq_connection_CC"+e.getStackTrace());
+			}
+		}
+	}
+	
+
+	private static String getRequestXML(String cabinetName, String sessionId,
+			String processInstanceID, String ws_name, String userName, StringBuilder sInputXML)
+	{
+		StringBuffer strBuff = new StringBuffer();
+		strBuff.append("<APMQPUTGET_Input>");
+		strBuff.append("<SessionId>" + sessionId + "</SessionId>");
+		strBuff.append("<EngineName>" + cabinetName + "</EngineName>");
+		strBuff.append("<XMLHISTORY_TABLENAME>NG_DCC_XMLLOG_HISTORY</XMLHISTORY_TABLENAME>");
+		strBuff.append("<WI_NAME>" + processInstanceID + "</WI_NAME>");
+		strBuff.append("<WS_NAME>" + ws_name + "</WS_NAME>");
+		strBuff.append("<USER_NAME>" + userName + "</USER_NAME>");
+		strBuff.append("<MQ_REQUEST_XML>");
+		strBuff.append(sInputXML);
+		strBuff.append("</MQ_REQUEST_XML>");
+		strBuff.append("</APMQPUTGET_Input>");
+		DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("GetRequestXML: "+ strBuff.toString());
+		return strBuff.toString();
+	}
+
+	private static String getResponseXML(String cabinetName,String sJtsIp,String iJtsPort, String
+			sessionId, String processInstanceID,String message_ID, int integrationWaitTime)
+	{
+
+		String outputResponseXML="";
+		try
+		{
+			String QueryString = "select OUTPUT_XML from NG_DCC_XMLLOG_HISTORY with (nolock) where MESSAGE_ID ='"+message_ID+"' and WI_NAME = '"+processInstanceID+"'";
+			String responseInputXML = CommonMethods.apSelectWithColumnNames(QueryString, cabinetName, sessionId);
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Response APSelect InputXML: "+responseInputXML);
+
+			int Loop_count=0;
+			do
+			{
+				String responseOutputXML=CommonMethods.WFNGExecute(responseInputXML,sJtsIp,iJtsPort,1);
+				//DCCExternalExposureLog.DCCExternalExposureLogger.debug("Response APSelect OutputXML: "+responseOutputXML);
+
+			    XMLParser xmlParserSocketDetails= new XMLParser(responseOutputXML);
+			    String responseMainCode = xmlParserSocketDetails.getValueOf("MainCode");
+			    //DCCExternalExposureLog.DCCExternalExposureLogger.debug("ResponseMainCode: "+responseMainCode);
+
+
+
+			    int responseTotalRecords = Integer.parseInt(xmlParserSocketDetails.getValueOf("TotalRetrieved"));
+			    //DCCExternalExposureLog.DCCExternalExposureLogger.debug("ResponseTotalRecords: "+responseTotalRecords);
+
+			    if (responseMainCode.equals("0") && responseTotalRecords > 0)
+				{
+
+					String responseXMLData=xmlParserSocketDetails.getNextValueOf("Record");
+					responseXMLData =responseXMLData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+	        		XMLParser xmlParserResponseXMLData = new XMLParser(responseXMLData);
+	        		//DCCExternalExposureLog.DCCExternalExposureLogger.debug("ResponseXMLData: "+responseXMLData);
+
+	        		outputResponseXML=xmlParserResponseXMLData.getValueOf("OUTPUT_XML");
+	        		//DCCExternalExposureLog.DCCExternalExposureLogger.debug("OutputResponseXML: "+outputResponseXML);
+	        		
+	        		if(outputResponseXML.contains("<MQ_RESPONSE_XML>"))
+	        		{
+	        			XMLParser xmlParserResponseXMLData1 = new XMLParser(outputResponseXML);
+	        			outputResponseXML = xmlParserResponseXMLData1.getValueOf("MQ_RESPONSE_XML");
+	        		}
+	        		if("".equalsIgnoreCase(outputResponseXML)){
+	        			outputResponseXML="Error";
+	    			}
+	        		break;
+				}
+			    Loop_count++;
+			    Thread.sleep(1000);
+			}
+			while(Loop_count<integrationWaitTime);
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("integrationWaitTime: "+integrationWaitTime);
+
+		}
+		catch(Exception e)
+		{
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Exception occurred in outputResponseXML" + e.getMessage());
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Exception occurred in outputResponseXML" + e.getStackTrace());
+			outputResponseXML="Error";
+		}
+
+		return outputResponseXML;
+
+	}
+	
+	private static String validateValue(String value) {
+		if (value != null && ! value.equals("") && !value.equalsIgnoreCase("null")) {
+			return value.toString();
+		}
+		return "";
+	}
+}

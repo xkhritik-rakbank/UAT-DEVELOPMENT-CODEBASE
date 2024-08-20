@@ -1,0 +1,16 @@
+VolumeID=1
+QueueID=1442
+SleepIntervalInMin=1
+AttributeNames=WINAME,ITEMTYPE,ITEMINDEX,ATTACHDOCNOOFTRIES,WorkItemName,PreviousStage,FAILEDINTEGRATIONCALL,LAST_ATTACH_TRY_TIME
+ExtTableName=RB_iRBL_EXTTABLE
+StartTime=00.00
+EndTime=23.59
+#filePath=/opt/almasraf/CustomUtilities/RAK_IRBL_Utility/IRBLDocumentAttach/Input
+filePath=D:\\Custom Utilites\\RAK_IRBL_Utility\\IRBLDocumentAttach\\Input
+#destFilePath=/opt/almasraf/CustomUtilities/RAK_IRBL_Utility/IRBLDocumentAttach/Success
+destFilePath=D:\\Custom Utilites\\RAK_IRBL_Utility\\IRBLDocumentAttach\\Success
+#failDestFilePath=/opt/almasraf/CustomUtilities/RAK_IRBL_Utility/IRBLDocumentAttach/Error
+failDestFilePath=D:\\Custom Utilites\\RAK_IRBL_Utility\\IRBLDocumentAttach\\Error
+fileDownloadLoc=DownloadLoc
+MaxNoOfTries=3
+TimeIntervalBetweenTrialsInMin=15

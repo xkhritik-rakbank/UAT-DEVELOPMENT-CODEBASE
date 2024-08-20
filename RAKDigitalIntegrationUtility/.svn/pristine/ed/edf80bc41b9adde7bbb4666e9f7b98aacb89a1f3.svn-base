@@ -1,0 +1,464 @@
+/*
+---------------------------------------------------------------------------------------------------------
+                  NEWGEN SOFTWARE TECHNOLOGIES LIMITED
+
+Group                   : DCC - Projects
+File Name				: DCC_System_Integration.java
+Author 					: Ravindra Kumar
+Date (DD/MM/YYYY)		: 15/06/2022
+
+---------------------------------------------------------------------------------------------------------
+                 	CHANGE HISTORY
+---------------------------------------------------------------------------------------------------------
+
+Problem No/CR No        Change Date           Changed By             Change Description
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+*/
+
+
+package com.newgen.DCC.SystemIntegration;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import com.newgen.common.CommonConnection;
+import com.newgen.common.CommonMethods;
+import com.newgen.omni.jts.cmgr.NGXmlList;
+import com.newgen.omni.jts.cmgr.XMLParser;
+import com.newgen.omni.wf.util.app.NGEjbClient;;
+
+
+public class DCC_System_Integration implements Runnable
+{
+
+	static Map<String, String> DCCSystemIntegrationMap = new HashMap<String, String>();
+	
+	static NGEjbClient ngEjbClient;
+
+	@Override
+	public void run()
+	{
+		String sessionID = "";
+		String cabinetName = "";
+		String jtsIP = "";
+		String jtsPort = "";
+		String queueID = "";
+		String UserName= "";
+		int socketConnectionTimeout=0;
+		int integrationWaitTime=0;
+		int sleepIntervalInMin=0;
+
+		try
+		{
+			DCCSystemIntegrationLog.setLogger();
+			ngEjbClient = NGEjbClient.getSharedInstance();
+			
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Connecting to Cabinet.");
+
+			int configReadStatus = readConfig();
+
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("configReadStatus "+configReadStatus);
+			if(configReadStatus !=0)
+			{
+				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("Could not Read Config Properties [RAOPStatus]");
+				return;
+			}
+
+			cabinetName = CommonConnection.getCabinetName();
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Cabinet Name: " + cabinetName);
+
+			jtsIP = CommonConnection.getJTSIP();
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("JTSIP: " + jtsIP);
+
+			jtsPort = CommonConnection.getJTSPort();
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("JTSPORT: " + jtsPort);
+
+			queueID = DCCSystemIntegrationMap.get("queueID");
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("QueueID: " + queueID);
+			
+			UserName = DCCSystemIntegrationMap.get("UserName");
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("UserName: " + UserName);
+
+			
+			socketConnectionTimeout=Integer.parseInt(DCCSystemIntegrationMap.get("MQ_SOCKET_CONNECTION_TIMEOUT"));
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketConnectionTimeOut: "+socketConnectionTimeout);
+
+			integrationWaitTime=Integer.parseInt(DCCSystemIntegrationMap.get("INTEGRATION_WAIT_TIME"));
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("IntegrationWaitTime: "+integrationWaitTime);
+
+			sleepIntervalInMin=Integer.parseInt(DCCSystemIntegrationMap.get("SleepIntervalInMin"));
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SleepIntervalInMin: "+sleepIntervalInMin);
+
+			sessionID = CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false);
+
+			if(sessionID.trim().equalsIgnoreCase(""))
+			{
+				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Could Not Connect to Server!");
+			}
+			else
+			{
+				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Session ID found: " + sessionID);
+				HashMap<String, String> socketDetailsMap = socketConnectionDetails(cabinetName, jtsIP, jtsPort, sessionID);
+				while(true)
+				{
+					DCCSystemIntegrationLog.setLogger();
+					DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("DCC CIF Verification...123.");
+					startDCCSysIntegrationUtility(cabinetName, UserName, jtsIP, jtsPort, sessionID, queueID, socketConnectionTimeout, integrationWaitTime, socketDetailsMap);
+					System.out.println("No More workitems to Process, Sleeping!");
+					Thread.sleep(sleepIntervalInMin*60*1000);
+				}
+			}
+		}
+
+		catch(Exception e)
+		{
+			e.printStackTrace();
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("Exception Occurred in DCC CIF Verification : "+e);
+			final Writer result = new StringWriter();
+			final PrintWriter printWriter = new PrintWriter(result);
+			e.printStackTrace(printWriter);
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("Exception Occurred in DCC CIF Verification : "+result);
+		}
+	}
+
+	
+
+	private void startDCCSysIntegrationUtility(String cabinetName, String UserName, String sJtsIp, String iJtsPort,
+			String sessionId, String queueID, int socketConnectionTimeOut, int integrationWaitTime,
+			HashMap<String, String> socketDetailsMap)
+	{
+		final String ws_name="Sys_Checks_Integration";
+		try
+		{
+			//Validate Session ID
+			sessionId  = CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false);
+
+			if(sessionId==null || sessionId.equalsIgnoreCase("") || sessionId.equalsIgnoreCase("null"))
+			{
+				DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("Could Not Get Session ID "+sessionId);
+				return;
+			}
+
+			//Fetch all Work-Items on given queueID.
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Fetching all Workitems on DCC_SysCheckIntegration queue");
+			System.out.println("Fetching all Workitems on DCC_SysCheckIntegration queue");
+			
+			String fetchWorkitemListInputXML=CommonMethods.fetchWorkItemsInput(cabinetName, sessionId, queueID);
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("InputXML for fetchWorkList Call: "+fetchWorkitemListInputXML);
+
+			String fetchWorkitemListOutputXML= CommonMethods.WFNGExecute(fetchWorkitemListInputXML,sJtsIp,iJtsPort,1);
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WMFetchWorkList OutputXML: "+fetchWorkitemListOutputXML);
+
+			XMLParser xmlParserFetchWorkItemlist = new XMLParser(fetchWorkitemListOutputXML);
+
+			String fetchWorkItemListMainCode = xmlParserFetchWorkItemlist.getValueOf("MainCode");
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("FetchWorkItemListMainCode: "+fetchWorkItemListMainCode);
+
+			int fetchWorkitemListCount = Integer.parseInt(xmlParserFetchWorkItemlist.getValueOf("RetrievedCount"));
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("RetrievedCount for WMFetchWorkList Call: "+fetchWorkitemListCount);
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Number of workitems retrieved on DCC_SysCheckIntegration: "+fetchWorkitemListCount);
+			System.out.println("Number of workitems retrieved on DCC_SysCheckIntegration: "+fetchWorkitemListCount);
+
+			if (fetchWorkItemListMainCode.trim().equals("0") && fetchWorkitemListCount > 0)
+			{
+				for(int i=0; i<fetchWorkitemListCount; i++)
+				{
+					try
+					{
+						String fetchWorkItemlistData=xmlParserFetchWorkItemlist.getNextValueOf("Instrument");
+						fetchWorkItemlistData =fetchWorkItemlistData.replaceAll("[ ]+>",">").replaceAll("<[ ]+", "<");
+
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Parsing <Instrument> in WMFetchWorkList OutputXML: "+fetchWorkItemlistData);
+						XMLParser xmlParserfetchWorkItemData = new XMLParser(fetchWorkItemlistData);
+
+						String processInstanceID=xmlParserfetchWorkItemData.getValueOf("ProcessInstanceId");
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Current ProcessInstanceID: "+processInstanceID);
+
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Processing Workitem: "+processInstanceID);
+						System.out.println("\nProcessing Workitem: "+processInstanceID);
+
+						String WorkItemID=xmlParserfetchWorkItemData.getValueOf("WorkItemId");
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Current WorkItemID: "+WorkItemID);
+
+						String entryDateTime=xmlParserfetchWorkItemData.getValueOf("EntryDateTime");
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Current EntryDateTime: "+entryDateTime);
+
+						String ActivityID = xmlParserfetchWorkItemData.getValueOf("WorkStageId");
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("ActivityID: "+ActivityID);
+
+						String ActivityType = xmlParserfetchWorkItemData.getValueOf("ActivityType");
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("ActivityType: "+ActivityType);
+
+						String ProcessDefId = xmlParserfetchWorkItemData.getValueOf("RouteId");
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("ProcessDefId: "+ProcessDefId);
+
+						/**We can remove this because its run for all the cases **/
+						String DBQuery = "SELECT FIRCO_Flag, EFMS_FLAG, FTS_FLAG FROM NG_DCC_EXTTABLE with(nolock) WHERE WI_NAME='" + processInstanceID + "'";
+				        
+				        String extTabDataIPXML = CommonMethods.apSelectWithColumnNames(DBQuery, CommonConnection.getCabinetName(), CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false));
+				        DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("extTabDataIPXML: " + extTabDataIPXML);
+				        String extTabDataOPXML = CommonMethods.WFNGExecute(extTabDataIPXML, CommonConnection.getJTSIP(), CommonConnection.getJTSPort(), 1);
+				        DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("extTabDataOPXML: " + extTabDataOPXML);
+
+				        XMLParser xmlParserData = new XMLParser(extTabDataOPXML);
+				        int iTotalrec = Integer.parseInt(xmlParserData.getValueOf("TotalRetrieved"));
+				        if (xmlParserData.getValueOf("MainCode").equalsIgnoreCase("0") && iTotalrec > 0) {
+				        	  String xmlDataExtTab = xmlParserData.getNextValueOf("Record");
+				              xmlDataExtTab = xmlDataExtTab.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+
+				              NGXmlList objWorkList = xmlParserData.createList("Records", "Record");
+				              DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("FIRCO_Flag: " + objWorkList.getVal("FIRCO_Flag"));
+				              DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("EFMS_FLAG: " + objWorkList.getVal("EFMS_FLAG"));
+				              DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("FTS_FLAG: " + objWorkList.getVal("FTS_FLAG"));
+					          //if ("N".equalsIgnoreCase(objWorkList.getVal("FIRCO_Flag")) && "N".equalsIgnoreCase(objWorkList.getVal("EFMS_FLAG")) && "N".equalsIgnoreCase(objWorkList.getVal("FTS_FLAG"))){
+								//Lock Workitem.
+								String getWorkItemInputXML = CommonMethods.getWorkItemInput(cabinetName, sessionId, processInstanceID,WorkItemID);
+								String getWorkItemOutputXml = CommonMethods.WFNGExecute(getWorkItemInputXML,sJtsIp,iJtsPort,1);
+								DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Output XML For WmgetWorkItemCall: "+ getWorkItemOutputXml);
+		
+								XMLParser xmlParserGetWorkItem = new XMLParser(getWorkItemOutputXml);
+								String getWorkItemMainCode = xmlParserGetWorkItem.getValueOf("MainCode");
+								//ResponseBean objResponseBean = null;
+								String IntExpoCollSumStatus = "";
+								String ExtExpoStatus = "";
+								String FinSumStatus = "";
+								String MemopadStatus = "";
+								String decisionValue="";
+								DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WmgetWorkItemCall Maincode:  "+ getWorkItemMainCode);
+								if (getWorkItemMainCode.trim().equals("0"))
+								{
+									DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WMgetWorkItemCall Successful: "+getWorkItemMainCode);
+									try
+									{
+										ExtExpoStatus = IntegrateExternalExposure.IntegratewithMW(processInstanceID,integrationWaitTime, socketConnectionTimeOut, socketDetailsMap, WorkItemID, ActivityID, ActivityType, ProcessDefId);					
+									}
+									catch(Exception e)
+									{
+										DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Exception in executing external exposure: "+e.toString());
+									}
+									
+									String strIntegrationErrCode="";
+									String attributesTag="";
+									String remarks = "";
+									if("Success".equalsIgnoreCase(ExtExpoStatus))
+									{
+										DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Status of external exposure: "+ExtExpoStatus);
+										strIntegrationErrCode="";
+										decisionValue="Success";
+										attributesTag="<Decision>"+decisionValue+"</Decision>";
+									}
+									else
+									{
+										if(ExtExpoStatus!=null && ExtExpoStatus.contains("Failure"))
+										{
+											String arr[] = ExtExpoStatus.split("~");
+											if(arr.length==2)
+											remarks=arr[1];
+										}
+										strIntegrationErrCode=ws_name;
+										decisionValue="Failed";
+										attributesTag="<Decision>"+decisionValue+"</Decision>";
+									}
+		
+									//String strMWErrorDesc = "";//"MessageID: "+objResponseBean.getMsgID()+", Return Code: "+objResponseBean.getIntFailedCode()+", Return Desc: "+objResponseBean.getIntFailedReason();
+		
+									DCCSystemIntegrationLog.DCCSystemIntegrationLogger.info("get Workitem call successfull for "+processInstanceID);
+		
+									String assignWorkitemAttributeInputXML = "<?xml version=\"1.0\"?><WMAssignWorkItemAttributes_Input>"
+											+ "<Option>WMAssignWorkItemAttributes</Option>"
+											+ "<EngineName>"+CommonConnection.getCabinetName()+"</EngineName>"
+											+ "<SessionId>"+CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false)+"</SessionId>"
+											+ "<ProcessInstanceId>"+processInstanceID+"</ProcessInstanceId>"
+											+ "<WorkItemId>"+WorkItemID+"</WorkItemId>"
+											+ "<ActivityId>"+ActivityID+"</ActivityId>"
+											+ "<ProcessDefId>"+ProcessDefId+"</ProcessDefId>"
+											+ "<LastModifiedTime></LastModifiedTime>"
+											+ "<ActivityType>"+ActivityType+"</ActivityType>"
+											+ "<complete>D</complete>"
+											+ "<AuditStatus></AuditStatus>"
+											+ "<Comments></Comments>"
+											+ "<UserDefVarFlag>Y</UserDefVarFlag>"
+											+ "<Attributes>"+attributesTag+"</Attributes>"
+											+ "</WMAssignWorkItemAttributes_Input>";
+									DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Input XML for assign Attribute is "+assignWorkitemAttributeInputXML);
+		
+									String assignWorkitemAttributeOutputXML= CommonMethods.WFNGExecute(assignWorkitemAttributeInputXML,CommonConnection.getJTSIP(),
+											CommonConnection.getJTSPort(),1);
+									DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Output XML for assign Attribues is "+assignWorkitemAttributeOutputXML);
+		
+									XMLParser xmlParserAssignAtt=new XMLParser(assignWorkitemAttributeOutputXML);
+		
+									String mainCodeAssignAtt=xmlParserAssignAtt.getValueOf("MainCode");
+									if("0".equals(mainCodeAssignAtt.trim()))
+									{
+										/*String completeWorkItemInputXML = CommonMethods.completeWorkItemInput(cabinetName, CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false),
+												processInstanceID,WorkItemID);
+		
+										DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Input XML for complete WI is "+completeWorkItemInputXML);
+		
+										String completeWorkItemOutputXML = CommonMethods.WFNGExecute(completeWorkItemInputXML,CommonConnection.getJTSIP(),CommonConnection.getJTSPort(),1);
+										DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Output XML for wmcompleteWorkItem: "+ completeWorkItemOutputXML);
+		
+										XMLParser xmlParserCompleteWorkitem = new XMLParser(completeWorkItemOutputXML);
+										String completeWorkitemMaincode = xmlParserCompleteWorkitem.getValueOf("MainCode");
+										DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Status of wmcompleteWorkItem  "+ completeWorkitemMaincode);
+		
+										if("0".equals(completeWorkitemMaincode))
+										{*/
+											//inserting into history table
+											//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WmCompleteWorkItem successful: "+completeWorkitemMaincode);
+											System.out.println(processInstanceID + " Completed Sussesfully with status "+decisionValue);
+		
+											DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WorkItem moved to next Workstep.");
+		
+											SimpleDateFormat inputDateformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+											SimpleDateFormat outputDateFormat=new SimpleDateFormat("dd-MMM-yyyy hh:mm:ss a");
+		
+											Date entryDatetimeFormat = inputDateformat.parse(entryDateTime);
+											String formattedEntryDatetime=outputDateFormat.format(entryDatetimeFormat);
+											DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("FormattedEntryDatetime: "+formattedEntryDatetime);
+		
+											Date actionDateTime= new Date();
+											String formattedActionDateTime=outputDateFormat.format(actionDateTime);
+											DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("FormattedActionDateTime: "+formattedActionDateTime);
+											//Insert in WIHistory Table.
+											String columnNames="wi_name,dec_date,workstep,user_name,Decision,Remarks";
+											String columnValues="'"+processInstanceID+"','"+formattedActionDateTime+"','"+ws_name+"','" +CommonConnection.getUsername()+"','"+decisionValue+"','"+remarks+"'";
+		
+											String apInsertInputXML=CommonMethods.apInsert(CommonConnection.getCabinetName(), CommonConnection.getSessionID(DCCSystemIntegrationLog.DCCSystemIntegrationLogger, false), columnNames, columnValues, "NG_DCC_GR_DECISION_HISTORY");
+											DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("APInsertInputXML: "+apInsertInputXML);
+		
+											String apInsertOutputXML = CommonMethods.WFNGExecute(apInsertInputXML,CommonConnection.getJTSIP(),
+													CommonConnection.getJTSPort(),1);
+											DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("APInsertOutputXML: "+ apInsertOutputXML);
+		
+											XMLParser xmlParserAPInsert = new XMLParser(apInsertOutputXML);
+											String apInsertMaincode = xmlParserAPInsert.getValueOf("MainCode");
+											DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Status of apInsertMaincode  "+ apInsertMaincode);
+											if(apInsertMaincode.equalsIgnoreCase("0"))
+											{
+												DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("ApInsert successful: "+apInsertMaincode);
+												DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Inserted in WiHistory table successfully.");
+											}
+											else
+											{
+												DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("ApInsert failed: "+apInsertMaincode);
+											}
+										/*}
+										else
+										{
+											System.out.println("Error in completeWI call for "+processInstanceID);
+											DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("Error in completeWI call for "+processInstanceID);
+										}*/
+									}
+									else
+									{
+										//System.out.println("Error in Assign Attribute call for "+processInstanceID);
+										DCCSystemIntegrationLog.DCCSystemIntegrationLogger.error("Error in Assign Attribute call for WI "+processInstanceID);
+									}					
+									}	
+									else
+									{
+										System.out.println("WMgetWorkItemCall failed: "+processInstanceID);
+										DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WMgetWorkItemCall failed: "+processInstanceID);
+									}
+					          //}
+						} else
+						{
+							DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("WI NOT FOUND : "+processInstanceID);
+						}
+					
+					}
+					catch(Exception e)
+					{
+						DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Exception: "+e.getMessage());
+					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Exception: "+e.getMessage());
+		}
+	}
+	
+	private int readConfig() {
+		Properties p = null;
+		try {
+
+			p = new Properties();
+			p.load(new FileInputStream(new File(System.getProperty("user.dir") + File.separator + "ConfigFiles" + File.separator + "DCC_System_Integration_Config.properties")));
+
+			Enumeration<?> names = p.propertyNames();
+
+			while (names.hasMoreElements()) {
+				String name = (String) names.nextElement();
+				DCCSystemIntegrationMap.put(name, p.getProperty(name));
+			}
+		} catch (Exception e) {
+			return -1;
+		}
+		return 0;
+	}
+	
+	public static HashMap<String, String> socketConnectionDetails(String cabinetName, String sJtsIp, String iJtsPort, String sessionID) {
+		HashMap<String, String> socketDetailsMap = new HashMap<String, String>();
+
+		try {
+			//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Fetching Socket Connection Details.");
+			System.out.println("Fetching Socket Connection Details.");
+
+			String socketDetailsQuery = "SELECT SocketServerIP, SocketServerPort FROM NG_BPM_MQ_TABLE with (nolock) where ProcessName = 'DCC' and CallingSource = 'Utility'";
+
+			String socketDetailsInputXML = CommonMethods.apSelectWithColumnNames(socketDetailsQuery, cabinetName, sessionID);
+			//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Socket Details APSelect InputXML: " + socketDetailsInputXML);
+
+			String socketDetailsOutputXML = CommonMethods.WFNGExecute(socketDetailsInputXML, sJtsIp, iJtsPort, 1);
+			//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Socket Details APSelect OutputXML: " + socketDetailsOutputXML);
+
+			XMLParser xmlParserSocketDetails = new XMLParser(socketDetailsOutputXML);
+			String socketDetailsMainCode = xmlParserSocketDetails.getValueOf("MainCode");
+			//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketDetailsMainCode: " + socketDetailsMainCode);
+
+			int socketDetailsTotalRecords = Integer.parseInt(xmlParserSocketDetails.getValueOf("TotalRetrieved"));
+			//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketDetailsTotalRecords: " + socketDetailsTotalRecords);
+
+			if (socketDetailsMainCode.equalsIgnoreCase("0") && socketDetailsTotalRecords > 0) {
+				String xmlDataSocketDetails = xmlParserSocketDetails.getNextValueOf("Record");
+				xmlDataSocketDetails = xmlDataSocketDetails.replaceAll("[ ]+>", ">").replaceAll("<[ ]+", "<");
+
+				XMLParser xmlParserSocketDetailsRecord = new XMLParser(xmlDataSocketDetails);
+
+				String socketServerIP = xmlParserSocketDetailsRecord.getValueOf("SocketServerIP");
+				//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketServerIP: " + socketServerIP);
+				socketDetailsMap.put("SocketServerIP", socketServerIP);
+
+				String socketServerPort = xmlParserSocketDetailsRecord.getValueOf("SocketServerPort");
+				//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketServerPort " + socketServerPort);
+				socketDetailsMap.put("SocketServerPort", socketServerPort);
+
+				//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("SocketServer Details found.");
+				System.out.println("SocketServer Details found.");
+
+			}
+		} catch (Exception e) {
+			//DCCSystemIntegrationLog.DCCSystemIntegrationLogger.debug("Exception in getting Socket Connection Details: " + e.getMessage());
+			System.out.println("Exception in getting Socket Connection Details: " + e.getMessage());
+		}
+
+		return socketDetailsMap;
+	}
+}
+
+
+

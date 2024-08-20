@@ -1,0 +1,24 @@
+<EE_EAI_MESSAGE>
+	<EE_EAI_HEADER>
+		<MsgFormat>ACCOUNT_MODIFY_STATUS_REQ</MsgFormat>
+		<MsgVersion>0000</MsgVersion>
+		<RequestorChannelId>CAS</RequestorChannelId>
+		<RequestorUserId>RAKUSER</RequestorUserId>
+		<RequestorLanguage>E</RequestorLanguage>
+		<RequestorSecurityInfo>secure</RequestorSecurityInfo>
+		<ReturnCode>0000</ReturnCode>
+		<ReturnDesc>Successful</ReturnDesc>
+		<MessageId>143300521454466445</MessageId>
+		<Extra1>REQ||LAXMANRET.LAXMANRET</Extra1>
+		<Extra2>2015-05-30T22:30:14.544+05:30</Extra2>
+	</EE_EAI_HEADER>
+	<AcctModifyStatusReq>
+		<Event>CLS</Event>
+		<CifId>CIF</CifId>
+		<AcctNumber>ACC_NO</AcctNumber>
+		<SystemId>YAP</SystemId>
+		<FreezeCode>D</FreezeCode>
+		<ClosureReasonCode>002</ClosureReasonCode>
+		<ClosureNotes>Closed</ClosureNotes>
+	</AcctModifyStatusReq>
+</EE_EAI_MESSAGE>
